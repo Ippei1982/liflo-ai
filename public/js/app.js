@@ -407,11 +407,9 @@ function initRecord() {
         if (g) { State.currentChat = []; State.recordData = null; State.pendingData = null; navigateTo('record', {goal: g}); }
     };
 
-    // 統制群チェック
     const uidStr = State.userID.toString();
     const isControl = uidStr.startsWith('26') && uidStr.length === 6;
 
-    // 前回の課題バナーの表示制御（統制群なら表示しない）
     const banner = document.getElementById('last-regoal-banner');
     const bannerText = document.getElementById('last-regoal-text');
     if(banner) banner.classList.add('hidden');
@@ -452,6 +450,9 @@ function initRecord() {
             // 追加チャット欄を隠す
             const addChat = document.getElementById('additional-chat-container');
             if(addChat) addChat.classList.add('hidden');
+            // 案内文も隠す
+            const guide = document.getElementById('save-recommend-text');
+            if(guide) guide.style.display = 'none';
         } else {
             // 通常：AI応答表示
             if(text) { firstMsgElement = addChatMessage(text.replace(/\n/g, '<br>'), 'bot'); }
@@ -476,7 +477,6 @@ function initRecord() {
         if(!c || !s){ customAlert('評価を選択してください'); return; }
         
         initBtn.disabled=true; 
-        // 送信中の文言切り替え
         initBtn.textContent = isControl ? '送信中...' : 'ライフロAI思考中...';
         
         State.recordData = { challengeU:c, skillU:s, reasonU:r };
@@ -508,7 +508,8 @@ function initRecord() {
         await customAlert(`<div class="text-center"><div class="flex justify-center mb-2"><img src="https://i.gyazo.com/01113f1d61ac6965070594d2e9fb4ee7.png" alt="Saved" class="w-40 object-contain"></div><p class="font-bold text-lg text-green-700">記録を保存しました！ 🎉 </p><p class="text-sm mt-1">素晴らしい取り組みですね！継続して頑張りましょう！</p></div>`);
         chatArea.classList.add('hidden');
         document.getElementById('coaching-options').classList.remove('hidden');
-        document.getElementById('coaching-options').innerHTML = `<div class="text-center p-4 bg-green-50 text-green-700 font-bold rounded-lg mb-4">保存しました！ 🎉</div><button onclick="navigateTo('top')" class="p-3 bg-gray-500 text-white rounded">トップへ</button><button onclick="navigateTo('review')" class="p-3 bg-emerald-500 text-white rounded">グラフを見る</button>`;
+        // 修正：グラフを見る → これまでの記録を見る
+        document.getElementById('coaching-options').innerHTML = `<div class="text-center p-4 bg-green-50 text-green-700 font-bold rounded-lg mb-4">保存しました！ 🎉</div><button onclick="navigateTo('top')" class="p-3 bg-gray-500 text-white rounded">トップへ</button><button onclick="navigateTo('review')" class="p-3 bg-emerald-500 text-white rounded">これまでの記録を見る</button>`;
     };
     const backBtn = appDiv.querySelector('.back-button');
     if(backBtn) backBtn.addEventListener('click', () => navigateTo('top'));
