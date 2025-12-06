@@ -1,0 +1,8 @@
+{
+  "name": "liflo-ai",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node api/gemini.js"
+  },
+  "dependencies": {}
+}

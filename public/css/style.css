@@ -1,0 +1,63 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f0fdf4;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.radio-label { transition: all 0.2s; cursor: pointer; flex-grow: 1; }
+.radio-input:checked + .radio-label {
+    background-color: #10b981;
+    color: white;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.flow-chart-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+    .flow-chart-container {
+        max-width: 500px;
+    }
+}
+
+.modal-overlay { background-color: rgba(0, 0, 0, 0.5); }
+.chat-bubble { position: relative; }
+
+.chat-bubble-user::after {
+    content: ''; position: absolute; top: 12px; right: -8px;
+    border-width: 8px 0 8px 10px; border-style: solid;
+    border-color: transparent transparent transparent #dcfce7;
+}
+
+.chat-bubble-ai::after {
+    content: ''; position: absolute; top: 12px; left: -8px;
+    border-width: 8px 10px 8px 0; border-style: solid;
+    border-color: transparent #ecfdf5 transparent transparent;
+}
+
+.chat-bubble-analysis::after {
+    content: ''; position: absolute; top: 12px; left: -8px;
+    border-width: 8px 10px 8px 0; border-style: solid;
+    border-color: transparent #eff6ff transparent transparent;
+}
+
+.chat-bubble-regoal::after {
+    content: ''; position: absolute; top: 12px; left: -8px;
+    border-width: 8px 10px 8px 0; border-style: solid;
+    border-color: transparent #fff7ed transparent transparent;
+}
+
+.records-scroll-area {
+    max-height: 400px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
