@@ -248,12 +248,10 @@ function initLogin() {
     if (loginForm) { loginForm.addEventListener('submit', (e) => { e.preventDefault(); auth('auth'); }); }
     else if(loginBtn) { loginBtn.onclick = (e) => { e.preventDefault(); auth('auth'); }; }
     
-    // 新規登録ボタン（リンク）の処理を修正
     if (regBtn) { 
         regBtn.onclick = (e) => { 
             e.preventDefault();
             const uid = userIdInput.value.trim();
-            // 研究用IDブロックロジック: 16または26で始まり、かつ6桁の場合は登録不可
             if ((uid.startsWith('16') || uid.startsWith('26')) && uid.length === 6) {
                 customAlert('【登録エラー】<br>指定された番号（' + uid + '）は研究参加者専用です。<br>モニター登録には使用できません。<br>桁数を変えるか、別の番号を使用してください。');
                 return;
@@ -426,27 +424,30 @@ function initRecord() {
     const saveBtn = document.getElementById('finalize-save-button');
     const initBtn = document.getElementById('submit-initial-record');
     
-    // AI応答処理の修正（統制群マスク機能追加）
+    // 統制群チェック
+    const uidStr = State.userID.toString();
+    const isControl = uidStr.startsWith('26') && uidStr.length === 6;
+
+    // 統制群ならボタンの文言を変更
+    if (isControl) {
+        initBtn.textContent = '記録を送信する 📤';
+    } else {
+        initBtn.textContent = '記録してライフロと相談する 🚀';
+    }
+
     const handleAIResponse = (raw) => {
         const { text, data } = extractLLMData(raw);
-        
-        // 統制群判定: 26から始まり、かつ6桁の場合
-        const uidStr = State.userID.toString();
-        const isControl = uidStr.startsWith('26') && uidStr.length === 6;
-
         let firstMsgElement = null;
 
         if (isControl) {
-            // 統制群の場合：AIの文章を表示せず、定型文を表示する
-            // ※バックグラウンドデータ(data)はpendingDataに保存されるが、UIには反映しない
+            // 統制群：定型文のみ
             firstMsgElement = addChatMessage("記録を受け付けました。<br>継続して取り組みましょう。 🌱", 'bot');
-            
-            if (data) {
-                State.pendingData = data; // データの保存準備だけ行う
-                // AI分析（青）や課題提示（オレンジ）の吹き出しは表示しない
-            }
+            if (data) { State.pendingData = data; } // データは裏で保持
+            // 追加チャット欄（チャット入力）を隠す
+            const addChat = document.getElementById('additional-chat-container');
+            if(addChat) addChat.classList.add('hidden');
         } else {
-            // 介入群・モニターの場合：通常表示
+            // 通常：AI応答表示
             if(text) { firstMsgElement = addChatMessage(text.replace(/\n/g, '<br>'), 'bot'); }
             if(data){
                 State.pendingData = data;
@@ -467,7 +468,11 @@ function initRecord() {
         const s = document.querySelector('input[name="skillU"]:checked')?.value;
         const r = document.getElementById('reasonU').value;
         if(!c || !s){ customAlert('評価を選択してください'); return; }
-        initBtn.disabled=true; initBtn.textContent='ライフロAI思考中...';
+        
+        initBtn.disabled=true; 
+        // 送信中の文言切り替え
+        initBtn.textContent = isControl ? '送信中...' : 'ライフロAI思考中...';
+        
         State.recordData = { challengeU:c, skillU:s, reasonU:r };
         const p = `目標: ${getGoalMainText(State.selectedGoal.goal)}\n自己評価: 挑戦${c}/能力${s}\n理由: ${r}`;
         addChatMessage(p.replace(/\n/g, '<br>'), 'user');
@@ -511,16 +516,14 @@ function initReview() {
     if(reviewableGoals.length===0){ box.innerHTML='<p class="text-gray-500 p-4">記録なし</p>'; return; }
     sel.innerHTML = reviewableGoals.map(g => `<option value="${g.goalNo}">#${g.goalNo} ${getGoalMainText(g.goal).substr(0,15)}...</option>`).join('');
     
-    // 統制群（26... かつ 6桁）の場合、チャートエリアを隠す
+    // 統制群チェック
     const uidStr = State.userID.toString();
     const isControl = uidStr.startsWith('26') && uidStr.length === 6;
+    
+    // 統制群ならグラフカード全体を隠す
     if (isControl) {
-        const chartCanvas = document.getElementById('flowChart');
-        if (chartCanvas) {
-            const container = chartCanvas.closest('.flow-chart-container');
-            if(container) { container.style.display = 'none'; }
-            if(tit) { tit.style.display = 'none'; }
-        }
+        const chartCard = document.getElementById('review-chart-card');
+        if(chartCard) chartCard.style.display = 'none';
     }
 
     const load = (gn) => {
@@ -567,9 +570,7 @@ function initReview() {
         });
         box.innerHTML='';
         [...recs].reverse().forEach(r => {
-            // 統制群の場合、リスト内のAI評価セクションを表示しない
             const aiSection = (!isControl && r.skillAI && r.challengeAI) ? `<div class="text-sm mt-2"><div class="flex items-center gap-2 mb-1"><div class="w-8 h-8 rounded-full border border-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0 bg-white"><img src="${SMALL_ICON_URL}" alt="LIFLO" class="w-full h-full object-contain"></div><span class="font-bold text-gray-700">ライフロの評価</span><span class="font-bold text-orange-600">挑戦${r.challengeAI} / 能力${r.skillAI}</span></div><div class="text-gray-600 text-xs pl-10 bg-orange-50 p-2 rounded ml-1">${r.reasonAI || 'コメントなし'}</div></div>` : '';
-            // 統制群の場合、regoalも表示しない（念のため）
             const regoalSection = (!isControl && r.regoalAI) ? `<div class="text-sm mt-2 pt-2 border-t border-gray-100"><div class="font-bold text-emerald-700 mb-1"> 🏁 今後の目標／課題</div><div class="bg-emerald-50 p-2 rounded text-emerald-800 text-xs font-medium">${r.regoalAI}</div></div>` : '';
             const card = document.createElement('div');
             card.className = 'bg-white p-4 rounded-lg shadow-sm border border-gray-200 space-y-3';
