@@ -406,14 +406,24 @@ function initRecord() {
         const g = State.activeGoals.find(item => item.goalNo == e.target.value);
         if (g) { State.currentChat = []; State.recordData = null; State.pendingData = null; navigateTo('record', {goal: g}); }
     };
+
+    // 統制群チェック
+    const uidStr = State.userID.toString();
+    const isControl = uidStr.startsWith('26') && uidStr.length === 6;
+
+    // 前回の課題バナーの表示制御（統制群なら表示しない）
     const banner = document.getElementById('last-regoal-banner');
     const bannerText = document.getElementById('last-regoal-text');
     if(banner) banner.classList.add('hidden');
-    setTimeout(() => {
-        const goalRecords = State.userRecords.filter(r => r.goalNo == State.selectedGoal?.goalNo).sort((a, b) => new Date(b.date) - new Date(a.date));
-        const lastRegoal = goalRecords.find(r => r.regoalAI)?.regoalAI;
-        if (lastRegoal && banner && bannerText) { bannerText.textContent = lastRegoal; banner.classList.remove('hidden'); }
-    }, 50);
+
+    if (!isControl) {
+        setTimeout(() => {
+            const goalRecords = State.userRecords.filter(r => r.goalNo == State.selectedGoal?.goalNo).sort((a, b) => new Date(b.date) - new Date(a.date));
+            const lastRegoal = goalRecords.find(r => r.regoalAI)?.regoalAI;
+            if (lastRegoal && banner && bannerText) { bannerText.textContent = lastRegoal; banner.classList.remove('hidden'); }
+        }, 50);
+    }
+
     const mkR = (n, p) => { p.innerHTML=''; for(let i=1;i<=7;i++) p.innerHTML+=`<input type="radio" id="${n}-${i}" name="${n}" value="${i}" class="radio-input hidden"><label for="${n}-${i}" class="radio-label text-center py-2 border rounded hover:bg-emerald-50 text-sm font-bold">${i}</label>`; };
     mkR('challengeU', document.getElementById('challengeU-radios'));
     mkR('skillU', document.getElementById('skillU-radios'));
@@ -424,10 +434,6 @@ function initRecord() {
     const saveBtn = document.getElementById('finalize-save-button');
     const initBtn = document.getElementById('submit-initial-record');
     
-    // 統制群チェック
-    const uidStr = State.userID.toString();
-    const isControl = uidStr.startsWith('26') && uidStr.length === 6;
-
     // 統制群ならボタンの文言を変更
     if (isControl) {
         initBtn.textContent = '記録を送信する 📤';
@@ -443,7 +449,7 @@ function initRecord() {
             // 統制群：定型文のみ
             firstMsgElement = addChatMessage("記録を受け付けました。<br>継続して取り組みましょう。 🌱", 'bot');
             if (data) { State.pendingData = data; } // データは裏で保持
-            // 追加チャット欄（チャット入力）を隠す
+            // 追加チャット欄を隠す
             const addChat = document.getElementById('additional-chat-container');
             if(addChat) addChat.classList.add('hidden');
         } else {
@@ -520,7 +526,7 @@ function initReview() {
     const uidStr = State.userID.toString();
     const isControl = uidStr.startsWith('26') && uidStr.length === 6;
     
-    // 統制群ならグラフカード全体を隠す
+    // 統制群ならグラフカード全体（枠ごと）を隠す
     if (isControl) {
         const chartCard = document.getElementById('review-chart-card');
         if(chartCard) chartCard.style.display = 'none';
