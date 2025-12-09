@@ -1,3 +1,8 @@
+/**
+ * LIFLO-AI Application Script
+ * 最終更新: 2025/12/03 (OT視点プロンプト・表示制御調整版)
+ */
+
 const LOGO_DATA = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PC9zdmc+";
 const SMALL_ICON_URL = "https://i.gyazo.com/53fff333901fd2d65bfe9ff2d20e3f2d.png";
 const USER_ICON_URL = "https://i.gyazo.com/77b9d2a0eccb6b2b8be8ad83d0d17b8f.png";
@@ -11,6 +16,8 @@ const State = {
 };
 
 const appDiv = document.getElementById('app');
+
+// --- Helper Functions ---
 
 function getFormattedDate() {
     const now = new Date();
@@ -101,6 +108,8 @@ async function fetchGAS(method, data = {}) {
     }
 }
 
+// --- Core Logic: LLM Integration (Updated) ---
+
 async function fetchLLM(prompt) {
     let currentContext = "";
     let latestRegoal = null;
@@ -115,6 +124,7 @@ async function fetchLLM(prompt) {
             currentContext = `【初期設定の第一歩】: ${firstStep}\n(※もしユーザーの進捗がこれを越えている場合は、会話内容を優先してください)`;
         }
     }
+
     const sys = `
     あなたは「ライフロ」という名前のAIコーチ（妖精のキャラクター）です。
     役割：ユーザーの目標達成を支援するため、作業療法士(OT)のような視点で、挑戦と能力のバランス（フロー状態）を専門的に分析・調整します。
@@ -132,17 +142,27 @@ async function fetchLLM(prompt) {
     - 一時的な成功/失敗に依存せず、目標全体における現在地（初期/中盤/仕上げ）やゴールとの距離感を踏まえて判断してください。
     3. **比較と結論**:
     - あなたが導き出した客観的評価と、ユーザーの自己評価が**食い違っていても構いません（むしろそのズレが重要です）。**
-    【★出力生成】
-    上記の思考プロセスで導き出した**「AI独自の評価」とその「根拠」**を、以下のJSON形式で出力してください。
-    **JSON内のテキストは、全て「ライフロ」のキャラクター口調（丁寧なタメ口・絵文字あり）に翻訳して記述すること。**
+    
+    【★出力生成指示】
+    ユーザーの発言に対し、以下の2つの要素を必ず出力してください。
+
+    1. **会話パート（フリートーク）**:
+       - OTの視点で、共感・励まし・具体的なアドバイスを行ってください。
+       - **重要: Markdownタグ（**太字**など）は一切使用禁止です。プレーンテキストのみで記述してください。**
+       - **重要: 文章は長くなりすぎないよう、簡潔に（従来の60%程度の分量に）短くまとめてください。**
+
+    2. **データパート（分析結果）**:
+       - 会話パートの後に、分析結果を以下のJSON形式で記述してください。
+
     JSONフォーマット:
+    \`\`\`json
     {
     "challengeAI": 1-7 (AIが独自に判定した数値),
     "skillAI": 1-7 (AIが独自に判定した数値),
-    "reasonAI": "『私の見立てでは〜〜です。なぜなら〜〜だからです』という内容を、親しみやすく伝える文章。\n（例：『私から見ると、今回は少し「退屈」寄りだったかも？ 🤔  だって、〇〇さんはもうこの作業を完全にマスターしていて、余裕でこなせているからです！ ✨ 』など、行動と事実に焦点を当てて根拠を語る）",
+    "reasonAI": "『私の見立てでは〜〜です。なぜなら〜〜だからです』という内容を、親しみやすく伝える文章。\n（Markdown禁止、短く簡潔に）",
     "regoalAI": "提案する調整課題。次回の挨拶で『前回の課題は【これ】でしたね！』と引用しやすいよう、『〇〇をやってみる！ 🔥 』や『〇〇を意識する ✨ 』のような、30文字以内の具体的で短いアクションフレーズにする。"
     }
-    ※ JSONのみを出力してください。Markdownタグは不要です。
+    \`\`\`
     `;
     
     const history = State.currentChat.map(m => ({ role: m.role==='bot'?'model':'user', parts:[{text:m.text}] }));
@@ -170,6 +190,8 @@ function extractLLMData(txt) {
     return { text: c, data: null };
 }
 
+// --- Render & Init Functions ---
+
 function render() {
     appDiv.innerHTML = '';
     let id = 'login-template';
@@ -186,6 +208,7 @@ function render() {
     else if(State.view==='review') initReview();
     else if(State.view==='theory') initTheoryPage();
 }
+
 function navigateTo(v, d={}) {
     window.scrollTo(0, 0);
     if(window.flowChartInstance){ window.flowChartInstance.destroy(); window.flowChartInstance=null; }
@@ -193,6 +216,7 @@ function navigateTo(v, d={}) {
     if(d.goal) State.selectedGoal=d.goal;
     State.view=v; render();
 }
+
 function addChatMessage(html, role, type = 'default') {
     const area = document.getElementById('record-chat-area');
     if(!area) return null;
@@ -216,6 +240,7 @@ function addChatMessage(html, role, type = 'default') {
     if (role === 'user') { setTimeout(()=>area.scrollTop=area.scrollHeight, 100); }
     return newElement;
 }
+
 function initLogin() {
     const loginForm = document.getElementById('login-form');
     const loginBtn = document.getElementById('login-button');
@@ -260,6 +285,7 @@ function initLogin() {
         }; 
     }
 }
+
 async function fetchUserData() {
     const r = await fetchGAS('GET', { action:'fetchData', userID:State.userID, userName:State.userName });
     if(r.status==='success'){
@@ -282,6 +308,7 @@ async function fetchUserData() {
         State.nextGoalNo = mx + 1;
     }
 }
+
 function initTop() {
     document.getElementById('welcome-userName').textContent = State.userName;
     document.getElementById('logout-button').onclick = () => { State.userID=''; navigateTo('login'); };
@@ -294,13 +321,13 @@ function initTop() {
         });
     });
     
-    // 統制群（26... かつ 6桁）の場合、理論ボタンを非表示にする
     const uidStr = State.userID.toString();
     if (uidStr.startsWith('26') && uidStr.length === 6) {
         const theoryBtn = document.querySelector('[data-action="theory"]');
         if (theoryBtn) theoryBtn.style.display = 'none';
     }
 }
+
 function initGoals() {
     const lst = document.getElementById('goal-list');
     let currentTab = 'active';
@@ -398,6 +425,7 @@ function initGoals() {
     if(backBtn) backBtn.onclick = () => navigateTo('top');
     ren();
 }
+
 function initRecord() {
     if(!State.selectedGoal && State.activeGoals.length>0) State.selectedGoal=State.activeGoals[0];
     const sel = document.getElementById('record-goal-select');
@@ -432,35 +460,43 @@ function initRecord() {
     const saveBtn = document.getElementById('finalize-save-button');
     const initBtn = document.getElementById('submit-initial-record');
     
-    // 統制群ならボタンの文言を変更
     if (isControl) {
         initBtn.textContent = '記録を送信する 📤';
     } else {
         initBtn.textContent = '記録してライフロと相談する 🚀';
     }
 
-    const handleAIResponse = (raw) => {
+    // --- Updated: Display Control Logic ---
+    const handleAIResponse = (raw, isFollowUp = false) => {
         const { text, data } = extractLLMData(raw);
         let firstMsgElement = null;
 
         if (isControl) {
-            // 統制群：定型文のみ
             firstMsgElement = addChatMessage("記録を受け付けました。<br>継続して取り組みましょう。 🌱", 'bot');
-            if (data) { State.pendingData = data; } // データは裏で保持
-            // 追加チャット欄を隠す
+            if (data) { State.pendingData = data; }
             const addChat = document.getElementById('additional-chat-container');
             if(addChat) addChat.classList.add('hidden');
-            // 案内文も隠す
             const guide = document.getElementById('save-recommend-text');
             if(guide) guide.style.display = 'none';
         } else {
-            // 通常：AI応答表示
-            if(text) { firstMsgElement = addChatMessage(text.replace(/\n/g, '<br>'), 'bot'); }
+            // 1. Text (Conversation): Always show, clean Markdown
+            if(text) { 
+                const cleanText = text.replace(/\*\*/g, '').replace(/__/g, '').replace(/\n/g, '<br>');
+                firstMsgElement = addChatMessage(cleanText, 'bot'); 
+            }
+
+            // 2. Data: Always update state, selectively show bubbles
             if(data){
-                State.pendingData = data;
-                const analysisHtml = `<div class="border-b border-blue-200 pb-2 mb-2"><div class="font-bold text-orange-600"> 📊 ライフロの見立て (挑戦${data.challengeAI}/能力${data.skillAI})</div><div class="font-bold text-blue-600 mt-1"> 🤔 ライフロの分析</div></div><div class="text-gray-700">${data.reasonAI}</div>`;
-                const analysisMsg = addChatMessage(analysisHtml, 'bot', 'analysis');
-                if (!firstMsgElement) firstMsgElement = analysisMsg;
+                State.pendingData = data; // Keep latest data for saving
+
+                // Show Analysis Bubble ONLY if NOT follow-up (First turn only)
+                if (!isFollowUp) {
+                    const analysisHtml = `<div class="border-b border-blue-200 pb-2 mb-2"><div class="font-bold text-orange-600"> 📊 ライフロの見立て (挑戦${data.challengeAI}/能力${data.skillAI})</div><div class="font-bold text-blue-600 mt-1"> 🤔 ライフロの分析</div></div><div class="text-gray-700">${data.reasonAI}</div>`;
+                    const analysisMsg = addChatMessage(analysisHtml, 'bot', 'analysis');
+                    if (!firstMsgElement) firstMsgElement = analysisMsg;
+                }
+
+                // Show Regoal Bubble ALWAYS (It updates with conversation)
                 const goalHtml = `<div class="font-bold text-green-600 mb-1 border-b border-green-200 pb-1"> 🚩 今後の目標／課題</div>${data.regoalAI}`;
                 addChatMessage(goalHtml, 'bot', 'regoal');
             }
@@ -482,22 +518,31 @@ function initRecord() {
         State.recordData = { challengeU:c, skillU:s, reasonU:r };
         const p = `目標: ${getGoalMainText(State.selectedGoal.goal)}\n自己評価: 挑戦${c}/能力${s}\n理由: ${r}`;
         addChatMessage(p.replace(/\n/g, '<br>'), 'user');
+        
+        // Pass false for first turn
         const res = await fetchLLM(p);
-        handleAIResponse(res);
+        handleAIResponse(res, false);
+        
         form.classList.add('hidden');
         chatArea.classList.remove('hidden');
     };
+
     sendBtn.onclick = async() => {
         const txt = chatInput.value.trim();
         if(!txt) return;
         chatInput.value='';
         sendBtn.disabled=true; sendBtn.textContent='...';
+        
         addChatMessage(txt.replace(/\n/g, '<br>'), 'user');
         State.recordData.reasonU += `\n(追記) ${txt}`;
+        
+        // Pass true for follow-up turns
         const res = await fetchLLM(txt);
-        handleAIResponse(res);
+        handleAIResponse(res, true);
+        
         sendBtn.disabled=false; sendBtn.textContent='送信';
     };
+
     saveBtn.onclick = async() => {
         if(!State.pendingData){ customAlert('保存するデータがありません'); return; }
         saveBtn.textContent='保存中...'; saveBtn.disabled=true;
@@ -508,12 +553,12 @@ function initRecord() {
         await customAlert(`<div class="text-center"><div class="flex justify-center mb-2"><img src="https://i.gyazo.com/01113f1d61ac6965070594d2e9fb4ee7.png" alt="Saved" class="w-40 object-contain"></div><p class="font-bold text-lg text-green-700">記録を保存しました！ 🎉 </p><p class="text-sm mt-1">素晴らしい取り組みですね！継続して頑張りましょう！</p></div>`);
         chatArea.classList.add('hidden');
         document.getElementById('coaching-options').classList.remove('hidden');
-        // 修正：グラフを見る → これまでの記録を見る
         document.getElementById('coaching-options').innerHTML = `<div class="text-center p-4 bg-green-50 text-green-700 font-bold rounded-lg mb-4">保存しました！ 🎉</div><button onclick="navigateTo('top')" class="p-3 bg-gray-500 text-white rounded">トップへ</button><button onclick="navigateTo('review')" class="p-3 bg-emerald-500 text-white rounded">これまでの記録を見る</button>`;
     };
     const backBtn = appDiv.querySelector('.back-button');
     if(backBtn) backBtn.addEventListener('click', () => navigateTo('top'));
 }
+
 let flowChartInstance = null;
 function initReview() {
     const sel = document.getElementById('review-goal-selector');
@@ -523,11 +568,9 @@ function initReview() {
     if(reviewableGoals.length===0){ box.innerHTML='<p class="text-gray-500 p-4">記録なし</p>'; return; }
     sel.innerHTML = reviewableGoals.map(g => `<option value="${g.goalNo}">#${g.goalNo} ${getGoalMainText(g.goal).substr(0,15)}...</option>`).join('');
     
-    // 統制群チェック
     const uidStr = State.userID.toString();
     const isControl = uidStr.startsWith('26') && uidStr.length === 6;
     
-    // 統制群ならグラフカード全体（枠ごと）を隠す
     if (isControl) {
         const chartCard = document.getElementById('review-chart-card');
         if(chartCard) chartCard.style.display = 'none';
@@ -591,7 +634,9 @@ function initReview() {
     if(backBtnTop) backBtnTop.addEventListener('click', () => navigateTo('top'));
     appDiv.querySelectorAll('.back-button').forEach(btn => btn.addEventListener('click', () => navigateTo('top')));
 }
+
 function initTheoryPage() { appDiv.querySelector('.back-button').addEventListener('click', () => navigateTo('top')); }
+
 window.onload = function() { render(); };
 appDiv.addEventListener('click', (e) => {
     const t = e.target.closest('[data-action]');
