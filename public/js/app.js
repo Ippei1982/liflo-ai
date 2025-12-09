@@ -1,6 +1,6 @@
 /**
  * LIFLO-AI Application Script
- * Update: Fix conversation flow & Add suggestions for "no idea" users
+ * Update: Goal Consultation Fix (Avoid loop & Update placeholder)
  */
 
 const LOGO_DATA = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PC9zdmc+";
@@ -202,22 +202,20 @@ async function fetchGoalConsultLLM(history, userInput) {
     2. **カテゴリ**: 仕事・キャリア / 健康・運動 / 趣味・教養 / 人間関係 / その他
     3. **最初の一歩**: 具体的なアクション
 
-    【重要：対話の流れ】
-    1. **目標が決まっていない時（または入力された時）**:
-       - ユーザーが「ジョギングする」や「英語の勉強」など具体的な行動を言ったら、**即座にそれを目標として受け止めてください。**「目標を決めましょう」と聞き返すのは禁止です。
-       - そのまま「いいですね！ではカテゴリは〜」と次のステップに進んでください。
+    【重要：対話ロジック（ループ防止）】
+    会話履歴をよく読んで、**既に確認済みの事項を再度質問しないでください。**
     
+    1. **カテゴリ確認のルール**:
+       - あなたが「カテゴリは〇〇で合っていますか？」と聞き、ユーザーが「はい」「うん」「OK」などで肯定した場合、即座に**「カテゴリ確定」**とみなしてください。
+       - **同じ質問（カテゴリ確認）を繰り返さず、すぐに次の「最初の一歩」の話題へ進んでください。**
+
+    【対話の流れ】
+    1. **目標が決まっていない時**:
+       - 「ジョギングする」等の具体的行動が出たら、即座にそれを目標として受け止め、次のステップへ。
     2. **目標が思いつかない時**:
-       - ユーザーが「わからない」「特にない」と言ったら、以下のような簡単な例を提案してください。
-         - 「寝る前に1行日記を書く」
-         - 「近所を5分散歩する」
-         - 「朝一杯の水を飲む」
-         - 「寝る前のスマホ時間を減らす」
-       - 「一緒に簡単なことから始めてみませんか？」と優しく誘導してください。
-
+       - ユーザーが迷っていたら、「寝る前に1行日記」「近所を5分散歩」などの小さな例を提案して誘導する。
     3. **カテゴリの確認**:
-       - 目標内容からあなたが推測し、「それは『健康・運動』の分野で合っていますか？」のように確認してください。
-
+       - 推測して確認する（1回だけ）。肯定されたら次へ。
     4. **完了時**:
        - 3つ揃ったら、「では、この内容で確認画面を表示しますね！✨」と案内し、JSONを出力して終了。
 
@@ -235,7 +233,6 @@ async function fetchGoalConsultLLM(history, userInput) {
     \`\`\`
     `;
 
-    // 履歴の形式を合わせる
     const contents = history.map(m => ({ role: m.role==='bot'?'model':'user', parts:[{text:m.text}] }));
     contents.push({ role: 'user', parts: [{ text: userInput }] });
 
@@ -267,6 +264,9 @@ async function startGoalConsultation(targetInputs) {
     const sendBtn = clone.getElementById('consult-send');
     const closeBtn = clone.getElementById('consult-close');
 
+    // ★修正点: プレースホルダーの文言変更
+    input.placeholder = "ここに書き込んでみましょう！✍️";
+
     document.body.appendChild(backdrop);
 
     let chatHistory = []; 
@@ -286,11 +286,10 @@ async function startGoalConsultation(targetInputs) {
         logArea.appendChild(div);
         logArea.scrollTop = logArea.scrollHeight;
         
-        // 履歴追加（ユーザー発言は別途追加するので、ここではBot発言のみ）
         if(!isUser && text) chatHistory.push({role: 'bot', text: text});
     };
 
-    // ★改善点1: ランダムな挨拶例の生成
+    // ランダムな挨拶例
     const examples = [
         "「英語を話せるようになりたい」",
         "「毎朝ウォーキングしたい」",
@@ -300,7 +299,6 @@ async function startGoalConsultation(targetInputs) {
         "「野菜中心の生活にしたい」",
         "「部屋の片付けを習慣にしたい」"
     ];
-    // ランダムに2つ選ぶ
     const shuffled = examples.sort(() => 0.5 - Math.random());
     const ex1 = shuffled[0];
     const ex2 = shuffled[1];
@@ -316,7 +314,6 @@ async function startGoalConsultation(targetInputs) {
         
         sendBtn.disabled = true; sendBtn.textContent = '...';
         
-        // API呼び出し
         const resRaw = await fetchGoalConsultLLM(chatHistory, txt);
         const { text, data } = extractLLMData(resRaw);
         
@@ -325,10 +322,8 @@ async function startGoalConsultation(targetInputs) {
         if(data) {
             // JSONが来たら完了処理
             setTimeout(async () => {
-                // チャット画面を閉じる（確認画面と重なると邪魔なので）
                 document.body.removeChild(backdrop);
 
-                // 確認用アラートを表示
                 await customAlert(`
                     <div class="text-center">
                         <p class="font-bold text-emerald-600 mb-2">この目標で登録しますか？✨</p>
@@ -341,14 +336,12 @@ async function startGoalConsultation(targetInputs) {
                     </div>
                 `);
                 
-                // フォームに反映
                 if(targetInputs.main) targetInputs.main.value = data.goal;
                 if(targetInputs.cat) targetInputs.cat.value = data.category;
                 if(targetInputs.step) targetInputs.step.value = data.step;
                 
-            }, 800); // AIの発言を読んで一呼吸おいてから表示
+            }, 800);
         } else {
-            // まだ続く場合のみ履歴に追加
             chatHistory.push({role: 'user', text: txt});
         }
         
@@ -358,7 +351,6 @@ async function startGoalConsultation(targetInputs) {
 
     sendBtn.onclick = handleSend;
     closeBtn.onclick = () => document.body.removeChild(backdrop);
-    // Enterキー対応
     input.onkeypress = (e) => { if(e.key === 'Enter') handleSend(); };
     setTimeout(() => input.focus(), 100);
 }
