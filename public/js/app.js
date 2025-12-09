@@ -249,7 +249,10 @@ function addChatMessage(html, role, type) {
 
 /* --- 各画面初期化 --- */
 function initLogin() {
-    const btn = document.getElementById('login-button');
+    const loginForm = document.getElementById('login-form');
+    const loginBtn = document.getElementById('login-button');
+    const regBtn = document.getElementById('register-button');
+    
     const doAuth = async(act) => {
         const uid = document.getElementById('userID').value.trim();
         const unm = document.getElementById('userName').value.trim();
@@ -259,17 +262,21 @@ function initLogin() {
             return customAlert('この番号は新規登録できません');
         }
 
-        btn.disabled=true; btn.textContent='...';
+        if(loginBtn) { loginBtn.disabled=true; loginBtn.textContent='...'; }
         const r = await fetchGAS('POST', {action:act, userID:uid, userName:unm});
         if(r.status==='success'){
             State.userID=uid; State.userName=unm;
             await customAlert('ログイン成功！'); await fetchUserData(); navigateTo('top');
         } else {
-            customAlert(r.message); btn.disabled=false; btn.textContent='ログイン';
+            customAlert(r.message); 
+            if(loginBtn) { loginBtn.disabled=false; loginBtn.textContent='ログイン'; }
         }
     };
-    document.getElementById('login-form').onsubmit = (e)=>{ e.preventDefault(); doAuth('auth'); };
-    document.getElementById('register-button').onclick = ()=>{ doAuth('register'); };
+
+    // ★重要: formがなくてもボタンクリックで動くように両方設定
+    if (loginForm) loginForm.onsubmit = (e)=>{ e.preventDefault(); doAuth('auth'); };
+    if (loginBtn) loginBtn.onclick = (e)=>{ e.preventDefault(); doAuth('auth'); };
+    if (regBtn) regBtn.onclick = ()=>{ doAuth('register'); };
 }
 
 function initTop() {
