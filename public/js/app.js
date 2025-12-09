@@ -170,10 +170,17 @@ async function fetchLLM(prompt, mode = 'analysis') {
         役割：ユーザーへのインタビューを通して、「目標」「カテゴリ」「最初の一歩」を一緒に決定します。
         
         【プロセス】
-        1. ユーザーに「やりたいこと」や「困っていること」を優しく聞き出してください。
-        2. 会話を重ねて、目標が明確になったら、最後に以下のJSONを出力して終了してください。
-           まだ相談中の場合は、JSONは出さずに会話を続けてください。
+        1. ユーザーに「やりたいこと」や「困っていること」を優しく聞き出し、目標を具体化してください。
+        2. 会話を重ねて、目標・カテゴリ・第一歩の3点が明確に定まったら、
+           「では、この内容で目標を作成しますね！✨」のように明るく締めくくった上で、
+           **最後に以下のJSONを出力して**終了してください。
+           （※まだ相談中の場合はJSONを出さずに会話を続けてください）
         
+        【禁止事項】
+        ・「**」などのMarkdown記法（太字など）は使用しないでください。
+        ・「JSON形式でまとめます」「コーチング完了です」等のシステム的な発言は禁止です。
+        ・あくまで自然な会話として振る舞ってください。
+
         【最終出力JSONフォーマット】
         {
         "goal": "目標のタイトル（例：毎日10分読書）",
@@ -352,11 +359,35 @@ async function startGoalConsultation() {
     document.body.appendChild(backdrop);
     State.currentChat = []; // チャット履歴リセット
 
-    // ヘルパー: メッセージ追加
+    // ヘルパー: メッセージ追加（ユーザーアイコン削除版）
     const addMsg = (txt, role) => {
         const d = document.createElement('div');
-        d.className = role === 'user' ? 'flex justify-end' : 'flex justify-start';
-        d.innerHTML = `<div class="max-w-[85%] p-3 rounded-lg text-sm ${role==='user'?'bg-emerald-100 text-gray-800':'bg-white border border-gray-200 shadow-sm'}">${txt}</div>`;
+        d.className = 'flex w-full items-start gap-2 mb-4 ' + (role === 'user' ? 'justify-end' : 'justify-start');
+        
+        // アイコンHTML（ボットの場合のみ生成）
+        const iconHtml = role === 'user' ? '' : `
+            <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 shadow border border-gray-200 overflow-hidden">
+                <img src="${SMALL_ICON_URL}" class="w-full h-full object-contain">
+            </div>
+        `;
+
+        // 吹き出しHTML
+        const bubbleHtml = `
+            <div class="max-w-[85%] p-3 rounded-2xl text-sm shadow-sm leading-relaxed
+                ${role === 'user' 
+                    ? 'bg-emerald-100 text-gray-800 rounded-tr-none' 
+                    : 'bg-white border border-gray-200 rounded-tl-none'}">
+                ${txt}
+            </div>
+        `;
+
+        // 配置（ユーザーならアイコンなしで右寄せ）
+        if (role === 'user') {
+            d.innerHTML = bubbleHtml;
+        } else {
+            d.innerHTML = iconHtml + bubbleHtml;
+        }
+
         area.appendChild(d);
         area.scrollTop = area.scrollHeight;
         State.currentChat.push({role, text:txt});
@@ -380,9 +411,27 @@ async function startGoalConsultation() {
         if (text) addMsg(text.replace(/\n/g, '<br>'), 'bot');
 
         if (data) {
-            // JSONが返ってきたら完了とみなす
-            if(confirm(`以下の内容で入力欄に反映しますか？\n\n目標: ${data.goal}\nカテゴリ: ${data.category}\n一歩: ${data.step}`)) {
-                // 親モーダルの入力欄にセット
+            // ★ showModalに変更
+            const confirmMsg = `
+                <div class="text-left space-y-2">
+                    <p class="mb-3 text-center font-bold text-emerald-600">この内容でセットしますか？</p>
+                    <div class="bg-gray-50 p-3 rounded border border-gray-200">
+                        <p class="text-sm"><span class="font-bold">🎯 目標:</span> ${data.goal}</p>
+                        <p class="text-sm"><span class="font-bold">📂 カテゴリ:</span> ${data.category}</p>
+                        <p class="text-sm"><span class="font-bold">👣 第一歩:</span> ${data.step}</p>
+                    </div>
+                </div>
+            `;
+            
+            await new Promise(r => setTimeout(r, 500));
+
+            const isOk = await showModal({ 
+                title: '目標の確認', 
+                message: confirmMsg, 
+                showCancel: true 
+            });
+
+            if (isOk) {
                 const mMain = document.getElementById('goal-input-main');
                 const mCat = document.getElementById('goal-input-category');
                 const mStep = document.getElementById('goal-input-step');
@@ -390,7 +439,9 @@ async function startGoalConsultation() {
                 if(mCat) mCat.value = data.category;
                 if(mStep) mStep.value = data.step;
                 
-                document.body.removeChild(backdrop); // チャットモーダルを閉じる
+                document.body.removeChild(backdrop);
+            } else {
+                addMsg("了解です！修正したいところがあれば教えてくださいね 🌱", 'bot');
             }
         }
         send.disabled = false; send.textContent = '送信';
@@ -568,23 +619,17 @@ function initRecord() {
         let firstMsgElement = null;
 
         if (isControl) {
-            // 統制群：定型文のみ
             firstMsgElement = addChatMessage("記録を受け付けました。<br>継続して取り組みましょう。 🌱", 'bot');
-            if (data) { State.pendingData = data; } // データは裏で保持
-            // 追加チャット欄を隠す
+            if (data) { State.pendingData = data; }
             const addChat = document.getElementById('additional-chat-container');
             if(addChat) addChat.classList.add('hidden');
-            // 案内文も隠す
             const guide = document.getElementById('save-recommend-text');
             if(guide) guide.style.display = 'none';
         } else {
-            // 通常：AI応答表示
             if(text) { firstMsgElement = addChatMessage(text.replace(/\n/g, '<br>'), 'bot'); }
             
             if (mode === 'analysis' && data) {
-                // 初回分析: 全データを保存
                 State.pendingData = data;
-                
                 const analysisHtml = `<div class="border-b border-blue-200 pb-2 mb-2"><div class="font-bold text-orange-600"> 📊 ライフロの見立て (挑戦${data.challengeAI}/能力${data.skillAI})</div><div class="font-bold text-blue-600 mt-1"> 🤔 ライフロの分析</div></div><div class="text-gray-700">${data.reasonAI}</div>`;
                 const analysisMsg = addChatMessage(analysisHtml, 'bot', 'analysis');
                 if (!firstMsgElement) firstMsgElement = analysisMsg;
@@ -593,9 +638,8 @@ function initRecord() {
                 addChatMessage(goalHtml, 'bot', 'regoal');
             } 
             else if (mode === 'chat') {
-                // 追記チャット: Regoalのみ更新の可能性あり
                 if (data && data.regoalAI) {
-                    State.pendingData.regoalAI = data.regoalAI; // Regoalのみ上書き
+                    State.pendingData.regoalAI = data.regoalAI;
                     const updateHtml = `<div class="font-bold text-green-600 mb-1 border-b border-green-200 pb-1"> 🚩 課題を更新しました！</div>${data.regoalAI}`;
                     addChatMessage(updateHtml, 'bot', 'regoal');
                 }
@@ -619,13 +663,21 @@ function initRecord() {
         const p = `目標: ${getGoalMainText(State.selectedGoal.goal)}\n自己評価: 挑戦${c}/能力${s}\n理由: ${r}`;
         addChatMessage(p.replace(/\n/g, '<br>'), 'user');
         
-        // ★モード 'analysis' で呼び出し
-        const res = await fetchLLM(p, 'analysis');
-        handleAIResponse(res, 'analysis');
-        
-        form.classList.add('hidden');
-        chatArea.classList.remove('hidden');
+        try {
+            // ★モード 'analysis' で呼び出し
+            const res = await fetchLLM(p, 'analysis');
+            handleAIResponse(res, 'analysis');
+        } catch(err) {
+            console.error(err);
+            addChatMessage("すみません、エラーが発生しました。もう一度試してください。", 'bot');
+        } finally {
+            // ★成功・失敗に関わらず必ず画面を切り替える
+            form.classList.add('hidden');
+            chatArea.classList.remove('hidden');
+            initBtn.disabled = false; // 万が一戻った時のため
+        }
     };
+
     sendBtn.onclick = async() => {
         const txt = chatInput.value.trim();
         if(!txt) return;
@@ -635,12 +687,18 @@ function initRecord() {
         addChatMessage(txt.replace(/\n/g, '<br>'), 'user');
         State.recordData.reasonU += `\n(追記) ${txt}`;
         
-        // ★モード 'chat' で呼び出し
-        const res = await fetchLLM(txt, 'chat');
-        handleAIResponse(res, 'chat');
-        
-        sendBtn.disabled=false; sendBtn.textContent='送信';
+        try {
+            // ★モード 'chat' で呼び出し
+            const res = await fetchLLM(txt, 'chat');
+            handleAIResponse(res, 'chat');
+        } catch(err) {
+            console.error(err);
+            addChatMessage("エラーが発生しました。", 'bot');
+        } finally {
+            sendBtn.disabled=false; sendBtn.textContent='送信';
+        }
     };
+    
     saveBtn.onclick = async() => {
         if(!State.pendingData){ customAlert('保存するデータがありません'); return; }
         saveBtn.textContent='保存中...'; saveBtn.disabled=true;
@@ -651,7 +709,6 @@ function initRecord() {
         await customAlert(`<div class="text-center"><div class="flex justify-center mb-2"><img src="https://i.gyazo.com/01113f1d61ac6965070594d2e9fb4ee7.png" alt="Saved" class="w-40 object-contain"></div><p class="font-bold text-lg text-green-700">記録を保存しました！ 🎉 </p><p class="text-sm mt-1">素晴らしい取り組みですね！継続して頑張りましょう！</p></div>`);
         chatArea.classList.add('hidden');
         document.getElementById('coaching-options').classList.remove('hidden');
-        // 修正：グラフを見る → これまでの記録を見る
         document.getElementById('coaching-options').innerHTML = `<div class="text-center p-4 bg-green-50 text-green-700 font-bold rounded-lg mb-4">保存しました！ 🎉</div><button onclick="navigateTo('top')" class="p-3 bg-gray-500 text-white rounded">トップへ</button><button onclick="navigateTo('review')" class="p-3 bg-emerald-500 text-white rounded">これまでの記録を見る</button>`;
     };
     const backBtn = appDiv.querySelector('.back-button');
