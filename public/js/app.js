@@ -103,12 +103,15 @@ async function fetchGAS(method, data = {}) {
 
 async function fetchLLM(prompt, mode = 'analysis') {
     let sys = '';
+    
+    // 共通のキャラクター設定
     const baseProfile = `
     あなたは「ライフロ」という名前のAIコーチ（妖精のキャラクター）です。
     ユーザー名：「${State.userName}」さん
     口調：親しみやすく、元気で、絵文字（ 🌱 , 🚀 , ✨ など）を多用する。「〜ですね！」「〜しましょう！」など。
     `;
 
+    // モード別プロンプト定義
     if (mode === 'analysis') {
         let currentContext = "";
         let latestRegoal = null;
@@ -122,7 +125,7 @@ async function fetchLLM(prompt, mode = 'analysis') {
                 : `【初期設定の第一歩】: ${firstStep}`;
         }
 
-        // ★JSON構造をシンプルにし、エラー回避を最優先
+        // ★修正点: PEOモデルの説明を削除し、以前のシンプルな指示に戻しました
         sys = `
         ${baseProfile}
         役割：作業療法士(OT)のような視点で、挑戦と能力のバランス（フロー状態）を専門的に分析・調整します。
@@ -130,13 +133,15 @@ async function fetchLLM(prompt, mode = 'analysis') {
         目標: ${getGoalMainText(State.selectedGoal?.goal)}
         ${currentContext}
         【思考プロセス】
-        ユーザーの自己評価数値には影響されず、PEOモデル(本人/環境/作業)に基づき客観的に評価してください。
+        ユーザーの自己評価数値には影響されず、PEOモデルに基づき客観的に評価してください。
 
         【出力生成】
-        以下のJSON形式のみを出力してください。Markdownタグや前置きは不要です。
+        以下のJSON形式のみを出力してください（Markdown不可）。
+        **重要: JSONの値（文字列）の中に改行コードを含めないでください。全てのテキストは1行で記述してください。**
+
         {
-        "challengeAI": 1-7,
-        "skillAI": 1-7,
+        "challengeAI": 1-7 (AI評価),
+        "skillAI": 1-7 (AI評価),
         "reasonAI": "ライフロの口調で記述した根拠",
         "regoalAI": "30文字以内の具体的で短いアクションフレーズ"
         }
@@ -183,7 +188,7 @@ async function fetchLLM(prompt, mode = 'analysis') {
     const history = State.currentChat.map(m => ({ role: m.role==='bot'?'model':'user', parts:[{text:m.text}] }));
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 40000); // 40秒に延長
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒タイムアウト
 
         const response = await fetch('/api/gemini', {
             method: 'POST',
@@ -198,29 +203,15 @@ async function fetchLLM(prompt, mode = 'analysis') {
         return data.text || "";
     } catch (e) {
         console.error(e);
-        return "通信エラーが発生しました。ネットワークを確認するか、少し待ってから再試行してください。";
+        return "すみません、通信エラーが発生しました。もう一度試してみてください。";
     }
 }
 
-// ★修正: JSON抽出ロジックを強化（壊れたJSONでもテキストは救出する）
 function extractLLMData(txt) {
-    if (!txt) return { text: "", data: null };
-    
     let c = txt.replace(/```json/g,'').replace(/```/g,'');
     const f = c.indexOf('{'), l = c.lastIndexOf('}');
-    
     if(f!==-1 && l!==-1 && l>f){
-        try { 
-            const jsonStr = c.substring(f,l+1);
-            const data = JSON.parse(jsonStr);
-            // JSON部分を除去したテキストを返す
-            const cleanText = (c.substring(0,f) + c.substring(l+1)).trim();
-            return { text: cleanText, data: data }; 
-        } catch(e) {
-            console.error("JSON Parse Error", e);
-            // JSONパースに失敗しても、全文をテキストとして返す（フリーズ回避）
-            return { text: c, data: null };
-        }
+        try{ return { text: (c.substring(0,f)+c.substring(l+1)).trim(), data: JSON.parse(c.substring(f,l+1)) }; }catch(e){}
     }
     return { text: c, data: null };
 }
@@ -357,7 +348,7 @@ function initTop() {
     }
 }
 
-// 目標設定相談用
+// 目標設定相談用（修正版：チャット自動クローズ＆ユーザーアイコンなし）
 async function startGoalConsultation() {
     const t = document.getElementById('goal-consult-template').content.cloneNode(true);
     const backdrop = t.getElementById('consult-backdrop');
@@ -369,11 +360,12 @@ async function startGoalConsultation() {
     document.body.appendChild(backdrop);
     State.currentChat = []; // チャット履歴リセット
 
+    // ヘルパー: メッセージ追加（ユーザーアイコン削除版）
     const addMsg = (txt, role) => {
         const d = document.createElement('div');
         d.className = 'flex w-full items-start gap-2 mb-4 ' + (role === 'user' ? 'justify-end' : 'justify-start');
         
-        // アイコンHTML（ボットのみ）
+        // アイコンHTML（ボットの場合のみ生成）
         const iconHtml = role === 'user' ? '' : `
             <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 shadow border border-gray-200 overflow-hidden">
                 <img src="${SMALL_ICON_URL}" class="w-full h-full object-contain">
@@ -390,6 +382,7 @@ async function startGoalConsultation() {
             </div>
         `;
 
+        // 配置（ユーザーならアイコンなしで右寄せ）
         if (role === 'user') {
             d.innerHTML = bubbleHtml;
         } else {
@@ -401,6 +394,7 @@ async function startGoalConsultation() {
         State.currentChat.push({role, text:txt});
     };
 
+    // 初期メッセージ
     const initMsg = "こんにちは！一緒に目標を考えましょう！✨ \nまずは、最近「やってみたいこと」や「気になっていること」、あるいは「やらなきゃいけないこと」はありますか？";
     addMsg(initMsg.replace(/\n/g, '<br>'), 'bot');
 
@@ -411,14 +405,17 @@ async function startGoalConsultation() {
         addMsg(txt, 'user');
         send.disabled = true; send.textContent = '...';
 
+        // ★ mode: 'goal_setting' で呼び出し
         const resRaw = await fetchLLM(txt, 'goal_setting');
         const { text, data } = extractLLMData(resRaw);
 
         if (text) addMsg(text.replace(/\n/g, '<br>'), 'bot');
 
         if (data) {
-            document.body.removeChild(backdrop); // チャットを閉じる
+            // ★ AIが完了判断したら、チャット画面をまず閉じる！
+            document.body.removeChild(backdrop);
             
+            // 確認ダイアログのメッセージ作成
             const confirmMsg = `
                 <div class="text-left space-y-2">
                     <p class="mb-3 text-center font-bold text-emerald-600">この内容でセットしますか？</p>
@@ -430,6 +427,7 @@ async function startGoalConsultation() {
                 </div>
             `;
             
+            // 確認モーダルを表示
             const isOk = await showModal({ 
                 title: '目標の確認', 
                 message: confirmMsg, 
@@ -443,9 +441,14 @@ async function startGoalConsultation() {
                 if(mMain) mMain.value = data.goal;
                 if(mCat) mCat.value = data.category;
                 if(mStep) mStep.value = data.step;
-            } 
-        } 
-        send.disabled = false; send.textContent = '送信';
+            } else {
+                // キャンセルの場合は、またボタンを押して相談しなおしてもらう（履歴は消えるがバグるよりマシ）
+                // フォームは開いたまま
+            }
+        } else {
+            // まだ会話が続く場合
+            send.disabled = false; send.textContent = '送信';
+        }
     };
 
     send.onclick = handleSend;
@@ -502,4 +505,299 @@ function initGoals() {
                 catTag.classList.remove('hidden');
             }
             const dateTag = t.querySelector('[data-field="goal-date-tag"]');
-            if (g.
+            if (g.startDate && dateTag) {
+                const startStr = formatDateForDisplay(g.startDate).split(' ')[0];
+                if (currentTab === 'history') { const endStr = g.lastDate ? formatDateForDisplay(g.lastDate).split(' ')[0] : '???'; dateTag.textContent = `📅 ${startStr} ～ ${endStr}`; }
+                else { dateTag.textContent = `📅 登録: ${startStr}`; }
+                dateTag.classList.remove('hidden');
+            }
+            const stepEl = t.querySelector('[data-field="goal-step"]');
+            const stepText = t.querySelector('.goal-step-text');
+            if (step && stepEl && stepText) { stepText.textContent = step; stepEl.classList.remove('hidden'); }
+            const editBtn = t.querySelector('.edit-btn');
+            if(editBtn) {
+                editBtn.onclick = async (e) => {
+                    e.preventDefault(); e.stopPropagation();
+                    const modalPromise = showModal({ title: '目標の編集・状態変更', showInput: true, inputType: 'goal-form', showCancel: true });
+                    setTimeout(() => {
+                        const mMain = document.getElementById('goal-input-main'); const mCat = document.getElementById('goal-input-category'); const mStep = document.getElementById('goal-input-step'); const mStat = document.getElementById('goal-input-status');
+                        if(mMain) mMain.value = titleOnly; if(mCat) mCat.value = category; if(mStep) mStep.value = step; if(mStat) mStat.value = g.status || '';
+                    }, 50);
+                    const result = await modalPromise;
+                    if(!result) return;
+                    let saveID = g.goalNo;
+                    if (result.status === '達成') saveID = 10000 + g.goalNo;
+                    else if (result.status === '中止') saveID = 20000 + g.goalNo;
+                    const newGoalString = `${result.goal} (Cat:${result.category}, 1st:${result.step})`;
+                    await fetchGAS('POST', { action: 'saveData', date: getFormattedDate(), userID: State.userID, userName: State.userName, goalNo: saveID, goal: newGoalString });
+                    customAlert('更新しました！✨'); await fetchUserData(); ren();
+                };
+            }
+            const recBtn = t.querySelector('[data-action="start-record"]');
+            if (recBtn) { if (currentTab === 'history') { recBtn.classList.add('hidden'); } else { recBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); navigateTo('record', {goal:g}); }; } }
+            lst.appendChild(t);
+        });
+    };
+    const addBtn = document.getElementById('add-goal-button');
+
+    // ★ 統制群チェック
+    const uidStr = State.userID.toString();
+    const isControl = uidStr.startsWith('26') && uidStr.length === 6;
+
+    if(addBtn) {
+        addBtn.onclick = async() => {
+            const modalPromise = showModal({ title:'目標登録', showInput:true, inputType:'goal-form', showCancel:true });
+
+            // ★ 統制群でなければ「ライフロと相談」ボタンを注入
+            if (!isControl) {
+                setTimeout(() => {
+                    const formContainer = document.getElementById('modal-goal-form');
+                    if(formContainer && !document.getElementById('consult-btn')) {
+                        const consultBtn = document.createElement('button');
+                        consultBtn.id = 'consult-btn';
+                        consultBtn.className = 'w-full py-2 bg-emerald-100 text-emerald-700 font-bold rounded-lg mb-4 hover:bg-emerald-200 transition flex items-center justify-center gap-2';
+                        consultBtn.innerHTML = '<span>🤖</span> ライフロと一緒に目標を考える';
+                        consultBtn.onclick = (e) => {
+                            e.preventDefault(); // 親モーダルが閉じないように
+                            startGoalConsultation();
+                        };
+                        formContainer.insertBefore(consultBtn, formContainer.firstChild);
+                    }
+                }, 50);
+            }
+
+            const i = await modalPromise;
+            if(!i) return;
+            const fg = `${i.goal} (Cat:${i.category}, 1st:${i.step})`;
+            await fetchGAS('POST', { action:'saveData', date:getFormattedDate(), userID:State.userID, userName:State.userName, goalNo:State.nextGoalNo, goal:fg });
+            customAlert('登録しました'); await fetchUserData(); ren();
+        };
+    }
+    const backBtn = document.querySelector('.back-button');
+    if(backBtn) backBtn.onclick = () => navigateTo('top');
+    ren();
+}
+function initRecord() {
+    if(!State.selectedGoal && State.activeGoals.length>0) State.selectedGoal=State.activeGoals[0];
+    const sel = document.getElementById('record-goal-select');
+    sel.innerHTML = State.activeGoals.map(g => `<option value="${g.goalNo}" ${State.selectedGoal?.goalNo==g.goalNo?'selected':''}>#${g.goalNo} ${getGoalMainText(g.goal).substr(0,20)}...</option>`).join('');
+    sel.onchange = (e) => {
+        const g = State.activeGoals.find(item => item.goalNo == e.target.value);
+        if (g) { State.currentChat = []; State.recordData = null; State.pendingData = null; navigateTo('record', {goal: g}); }
+    };
+
+    const uidStr = State.userID.toString();
+    const isControl = uidStr.startsWith('26') && uidStr.length === 6;
+
+    const banner = document.getElementById('last-regoal-banner');
+    const bannerText = document.getElementById('last-regoal-text');
+    if(banner) banner.classList.add('hidden');
+
+    if (!isControl) {
+        setTimeout(() => {
+            const goalRecords = State.userRecords.filter(r => r.goalNo == State.selectedGoal?.goalNo).sort((a, b) => new Date(b.date) - new Date(a.date));
+            const lastRegoal = goalRecords.find(r => r.regoalAI)?.regoalAI;
+            if (lastRegoal && banner && bannerText) { bannerText.textContent = lastRegoal; banner.classList.remove('hidden'); }
+        }, 50);
+    }
+
+    const mkR = (n, p) => { p.innerHTML=''; for(let i=1;i<=7;i++) p.innerHTML+=`<input type="radio" id="${n}-${i}" name="${n}" value="${i}" class="radio-input hidden"><label for="${n}-${i}" class="radio-label text-center py-2 border rounded hover:bg-emerald-50 text-sm font-bold">${i}</label>`; };
+    mkR('challengeU', document.getElementById('challengeU-radios'));
+    mkR('skillU', document.getElementById('skillU-radios'));
+    const form = document.getElementById('cs-evaluation-form');
+    const chatArea = document.getElementById('continue-chat-area');
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-chat-button');
+    const saveBtn = document.getElementById('finalize-save-button');
+    const initBtn = document.getElementById('submit-initial-record');
+    
+    // 統制群ならボタンの文言を変更
+    if (isControl) {
+        initBtn.textContent = '記録を送信する 📤';
+    } else {
+        initBtn.textContent = '記録してライフロと相談する 🚀';
+    }
+
+    const handleAIResponse = (raw, mode) => {
+        const { text, data } = extractLLMData(raw);
+        let firstMsgElement = null;
+
+        if (isControl) {
+            firstMsgElement = addChatMessage("記録を受け付けました。<br>継続して取り組みましょう。 🌱", 'bot');
+            if (data) { State.pendingData = data; }
+            const addChat = document.getElementById('additional-chat-container');
+            if(addChat) addChat.classList.add('hidden');
+            const guide = document.getElementById('save-recommend-text');
+            if(guide) guide.style.display = 'none';
+        } else {
+            if(text) { firstMsgElement = addChatMessage(text.replace(/\n/g, '<br>'), 'bot'); }
+            
+            if (mode === 'analysis' && data) {
+                State.pendingData = data;
+                const analysisHtml = `<div class="border-b border-blue-200 pb-2 mb-2"><div class="font-bold text-orange-600"> 📊 ライフロの見立て (挑戦${data.challengeAI}/能力${data.skillAI})</div><div class="font-bold text-blue-600 mt-1"> 🤔 ライフロの分析</div></div><div class="text-gray-700">${data.reasonAI}</div>`;
+                const analysisMsg = addChatMessage(analysisHtml, 'bot', 'analysis');
+                if (!firstMsgElement) firstMsgElement = analysisMsg;
+                
+                const goalHtml = `<div class="font-bold text-green-600 mb-1 border-b border-green-200 pb-1"> 🚩 今後の目標／課題</div><div id="regoal-display">${data.regoalAI}</div>`;
+                addChatMessage(goalHtml, 'bot', 'regoal');
+            } 
+            else if (mode === 'chat') {
+                if (data && data.regoalAI) {
+                    State.pendingData.regoalAI = data.regoalAI;
+                    const updateHtml = `<div class="font-bold text-green-600 mb-1 border-b border-green-200 pb-1"> 🚩 課題を更新しました！</div>${data.regoalAI}`;
+                    addChatMessage(updateHtml, 'bot', 'regoal');
+                }
+            }
+        }
+        
+        if (firstMsgElement) { firstMsgElement.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    };
+    
+    form.onsubmit = async(e) => {
+        e.preventDefault();
+        const c = document.querySelector('input[name="challengeU"]:checked')?.value;
+        const s = document.querySelector('input[name="skillU"]:checked')?.value;
+        const r = document.getElementById('reasonU').value;
+        if(!c || !s){ customAlert('評価を選択してください'); return; }
+        
+        initBtn.disabled=true; 
+        initBtn.textContent = isControl ? '送信中...' : 'ライフロAI思考中...';
+        
+        State.recordData = { challengeU:c, skillU:s, reasonU:r };
+        const p = `目標: ${getGoalMainText(State.selectedGoal.goal)}\n自己評価: 挑戦${c}/能力${s}\n理由: ${r}`;
+        addChatMessage(p.replace(/\n/g, '<br>'), 'user');
+        
+        try {
+            // ★モード 'analysis' で呼び出し (安全のため)
+            const res = await fetchLLM(p, 'analysis');
+            handleAIResponse(res, 'analysis');
+        } catch(err) {
+            console.error(err);
+            addChatMessage("すみません、エラーが発生しました。もう一度試してください。", 'bot');
+        } finally {
+            // ★成功・失敗に関わらず必ず画面を切り替える（フリーズ防止）
+            form.classList.add('hidden');
+            chatArea.classList.remove('hidden');
+            initBtn.disabled = false;
+        }
+    };
+
+    sendBtn.onclick = async() => {
+        const txt = chatInput.value.trim();
+        if(!txt) return;
+        chatInput.value='';
+        sendBtn.disabled=true; sendBtn.textContent='...';
+        
+        addChatMessage(txt.replace(/\n/g, '<br>'), 'user');
+        State.recordData.reasonU += `\n(追記) ${txt}`;
+        
+        try {
+            // ★モード 'chat' で呼び出し
+            const res = await fetchLLM(txt, 'chat');
+            handleAIResponse(res, 'chat');
+        } catch(err) {
+            console.error(err);
+            addChatMessage("エラーが発生しました。", 'bot');
+        } finally {
+            sendBtn.disabled=false; sendBtn.textContent='送信';
+        }
+    };
+    
+    saveBtn.onclick = async() => {
+        if(!State.pendingData){ customAlert('保存するデータがありません'); return; }
+        saveBtn.textContent='保存中...'; saveBtn.disabled=true;
+        const d = State.pendingData;
+        const r = State.recordData;
+        await fetchGAS('POST', { action:'saveData', date:getFormattedDate(), userID:State.userID, userName:State.userName, goalNo:State.selectedGoal.goalNo, goal:State.selectedGoal.goal, challengeU:r.challengeU, skillU:r.skillU, reasonU:r.reasonU, challengeAI:d.challengeAI, skillAI:d.skillAI, reasonAI:d.reasonAI, regoalAI:d.regoalAI });
+        await fetchUserData();
+        await customAlert(`<div class="text-center"><div class="flex justify-center mb-2"><img src="https://i.gyazo.com/01113f1d61ac6965070594d2e9fb4ee7.png" alt="Saved" class="w-40 object-contain"></div><p class="font-bold text-lg text-green-700">記録を保存しました！ 🎉 </p><p class="text-sm mt-1">素晴らしい取り組みですね！継続して頑張りましょう！</p></div>`);
+        chatArea.classList.add('hidden');
+        document.getElementById('coaching-options').classList.remove('hidden');
+        document.getElementById('coaching-options').innerHTML = `<div class="text-center p-4 bg-green-50 text-green-700 font-bold rounded-lg mb-4">保存しました！ 🎉</div><button onclick="navigateTo('top')" class="p-3 bg-gray-500 text-white rounded">トップへ</button><button onclick="navigateTo('review')" class="p-3 bg-emerald-500 text-white rounded">これまでの記録を見る</button>`;
+    };
+    const backBtn = appDiv.querySelector('.back-button');
+    if(backBtn) backBtn.addEventListener('click', () => navigateTo('top'));
+}
+let flowChartInstance = null;
+function initReview() {
+    const sel = document.getElementById('review-goal-selector');
+    const box = document.getElementById('record-details-container');
+    const tit = document.getElementById('chart-title');
+    const reviewableGoals = State.activeGoals.filter(g => State.userRecords.some(r => r.goalNo==g.goalNo && r.challengeU));
+    if(reviewableGoals.length===0){ box.innerHTML='<p class="text-gray-500 p-4">記録なし</p>'; return; }
+    sel.innerHTML = reviewableGoals.map(g => `<option value="${g.goalNo}">#${g.goalNo} ${getGoalMainText(g.goal).substr(0,15)}...</option>`).join('');
+    
+    // 統制群チェック
+    const uidStr = State.userID.toString();
+    const isControl = uidStr.startsWith('26') && uidStr.length === 6;
+    
+    // 統制群ならグラフカード全体（枠ごと）を隠す
+    if (isControl) {
+        const chartCard = document.getElementById('review-chart-card');
+        if(chartCard) chartCard.style.display = 'none';
+    }
+
+    const load = (gn) => {
+        const recs = State.userRecords.filter(r => r.goalNo==gn && r.challengeU).sort((a,b)=>new Date(a.date)-new Date(b.date));
+        const goalName = reviewableGoals.find(t=>t.goalNo==gn)?.goal||'';
+        if(tit) tit.textContent = `${getGoalMainText(goalName)} のCSバランス推移`;
+        const ctx = document.getElementById('flowChart').getContext('2d');
+        if(flowChartInstance) { flowChartInstance.destroy(); }
+        const uPts = []; const aPts = [];
+        recs.forEach((r, idx) => {
+            uPts.push({x:parseFloat(r.skillU), y:parseFloat(r.challengeU)});
+            if(r.skillAI){
+                let ax = parseFloat(r.skillAI); let ay = parseFloat(r.challengeAI);
+                if(ax === parseFloat(r.skillU) && ay === parseFloat(r.challengeU)) { ax += 0.15; ay += 0.15; }
+                aPts.push({x:ax, y:ay});
+            }
+        });
+        const uLast = uPts.length > 0 ? [uPts[uPts.length-1]] : [];
+        const aLast = aPts.length > 0 ? [aPts[aPts.length-1]] : [];
+        const isMobile = window.innerWidth < 768;
+        const fontSize = isMobile ? 12 : 14;
+        flowChartInstance = new Chart(ctx, {
+            type: 'scatter',
+            data: {
+                datasets: [
+                    { label: 'あなた(実線)', data: uPts, borderColor: 'rgba(16, 185, 129, 0.4)', backgroundColor: 'rgba(16, 185, 129, 0.4)', showLine: true, pointRadius: 3, borderWidth: 2 },
+                    { label: 'ライフロ評価(点線)', data: aPts, borderColor: 'rgba(249, 115, 22, 0.6)', backgroundColor: 'rgba(249, 115, 22, 0.4)', showLine: true, borderDash: [5, 5], pointRadius: 3, borderWidth: 2 },
+                    { label: '最新のあなた(丸)', data: uLast, borderColor: 'rgb(5, 150, 105)', backgroundColor: 'rgb(5, 150, 105)', pointRadius: 8, pointHoverRadius: 10, pointStyle: 'circle' },
+                    { label: '最新ライフロ(星)', data: aLast, borderColor: 'rgb(255, 152, 0)', backgroundColor: 'rgba(255, 152, 0, 0.5)', pointRadius: 10, pointHoverRadius: 12, pointStyle: 'star' }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { x: { min: 1, max: 7, title: { display: true, text: '能力レベル', font: { size: fontSize, weight: 'bold' } } }, y: { min: 1, max: 7, title: { display: true, text: '挑戦レベル', font: { size: fontSize, weight: 'bold' } } } },
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(context) { let label = context.dataset.label || ''; if (label) label += ': '; if (context.parsed.x !== null) { const x = Math.round(context.parsed.x); const y = Math.round(context.parsed.y); label += `(挑戦${y}, 能力${x})`; } return label; } } } },
+                beforeDraw: (chart) => {
+                    const { ctx, chartArea: { top, bottom, left, right }, scales: { x, y } } = chart;
+                    const cx = x.getPixelForValue(4); const cy = y.getPixelForValue(4);
+                    ctx.clearRect(left, top, right - left, bottom - top);
+                    const q = [ { c: 'rgba(74, 222, 128, 0.2)', x: cx, y: top, w: right-cx, h: cy-top, t: 'フロー' }, { c: 'rgba(252, 165, 165, 0.2)', x: left, y: top, w: cx-left, h: cy-top, t: '不安' }, { c: 'rgba(253, 224, 71, 0.2)', x: cx, y: cy, w: right-cx, h: bottom-cy, t: '退屈' }, { c: 'rgba(199, 210, 254, 0.2)', x: left, y: cy, w: cx-left, h: bottom-cy, t: '無関心' } ];
+                    q.forEach(i => { ctx.fillStyle = i.c; ctx.fillRect(i.x, i.y, i.w, i.h); ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.font = isMobile ? '10px Inter' : '14px Inter'; ctx.fillText(i.t, i.x + i.w/2 - 10, i.y + i.h/2); });
+                }
+            }
+        });
+        box.innerHTML='';
+        [...recs].reverse().forEach(r => {
+            const aiSection = (!isControl && r.skillAI && r.challengeAI) ? `<div class="text-sm mt-2"><div class="flex items-center gap-2 mb-1"><div class="w-8 h-8 rounded-full border border-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0 bg-white"><img src="${SMALL_ICON_URL}" alt="LIFLO" class="w-full h-full object-contain"></div><span class="font-bold text-gray-700">ライフロの評価</span><span class="font-bold text-orange-600">挑戦${r.challengeAI} / 能力${r.skillAI}</span></div><div class="text-gray-600 text-xs pl-10 bg-orange-50 p-2 rounded ml-1">${r.reasonAI || 'コメントなし'}</div></div>` : '';
+            const regoalSection = (!isControl && r.regoalAI) ? `<div class="text-sm mt-2 pt-2 border-t border-gray-100"><div class="font-bold text-emerald-700 mb-1"> 🏁 今後の目標／課題</div><div class="bg-emerald-50 p-2 rounded text-emerald-800 text-xs font-medium">${r.regoalAI}</div></div>` : '';
+            const card = document.createElement('div');
+            card.className = 'bg-white p-4 rounded-lg shadow-sm border border-gray-200 space-y-3';
+            card.innerHTML = `<div class="text-xs font-bold text-gray-500 border-b border-gray-100 pb-1">${formatDateForDisplay(r.date)}</div><div class="text-sm"><div class="flex items-center gap-2 mb-1"><div class="w-8 h-8 rounded-full border border-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0 bg-white"><img src="${USER_ICON_URL}" alt="User" class="w-4/5 h-4/5 object-contain p-1"></div><span class="font-bold text-gray-700">あなたの評価</span><span class="font-bold text-emerald-600">挑戦${r.challengeU} / 能力${r.skillU}</span></div><div class="text-gray-600 text-xs pl-10 ml-1">${r.reasonU || '理由なし'}</div></div>${aiSection}${regoalSection}`;
+            box.appendChild(card);
+        });
+    };
+    load(reviewableGoals[0].goalNo);
+    sel.addEventListener('change', (e) => load(e.target.value));
+    const backBtnTop = appDiv.querySelector('.back-button');
+    if(backBtnTop) backBtnTop.addEventListener('click', () => navigateTo('top'));
+    appDiv.querySelectorAll('.back-button').forEach(btn => btn.addEventListener('click', () => navigateTo('top')));
+}
+function initTheoryPage() { appDiv.querySelector('.back-button').addEventListener('click', () => navigateTo('top')); }
+window.onload = function() { render(); };
+appDiv.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-action]');
+    if (t && !t.getAttribute('onclick')) navigateTo(t.dataset.action);
+});
