@@ -113,7 +113,6 @@ async function fetchLLM(prompt, mode = 'analysis') {
 
     // モード別プロンプト定義
     if (mode === 'analysis') {
-        // --- 既存の記録分析用 (JSON必須) ---
         let currentContext = "";
         let latestRegoal = null;
         if (State.selectedGoal) {
@@ -126,6 +125,7 @@ async function fetchLLM(prompt, mode = 'analysis') {
                 : `【初期設定の第一歩】: ${firstStep}`;
         }
 
+        // ★修正点: JSONエラーを防ぐため、「改行禁止」などの指示を強化
         sys = `
         ${baseProfile}
         役割：作業療法士(OT)のような視点で、挑戦と能力のバランス（フロー状態）を専門的に分析・調整します。
@@ -133,25 +133,25 @@ async function fetchLLM(prompt, mode = 'analysis') {
         目標: ${getGoalMainText(State.selectedGoal?.goal)}
         ${currentContext}
         【思考プロセス】
-        ユーザーの自己評価数値には影響されず、以下の視点を用いて客観的に評価してください。
-        **PEOモデル分析**:
-        1. Person (本人): 疲労度、モチベーション、スキルの習熟度
-        2. Environment (環境): 時間帯、場所、妨害要因の有無
-        3. Occupation (作業): その課題が持つ本来の難易度や複雑さ
+        ユーザーの自己評価数値には影響されず、以下の視点（PEOモデル）を用いて客観的に評価してください。
+        1. Person (本人): 疲労度、モチベーション、スキル
+        2. Environment (環境): 時間帯、場所、妨害要因
+        3. Occupation (作業): 難易度、複雑さ
         これらを総合し、フロー状態（挑戦と能力の均衡）の観点から判定を行ってください。
 
         【出力生成】
         以下のJSON形式のみを出力してください（Markdown不可）。
+        **重要: JSONの値（文字列）の中に改行コードを含めないでください。全てのテキストは1行で記述してください。**
+
         {
         "challengeAI": 1-7 (AI評価),
         "skillAI": 1-7 (AI評価),
-        "reasonAI": "ライフロの口調で記述した根拠（PEOの要素を交えて具体的に）",
+        "reasonAI": "ライフロの口調で記述した根拠（PEO要素を交えつつ、改行せずに簡潔に）",
         "regoalAI": "30文字以内の具体的で短いアクションフレーズ"
         }
         `;
     } 
     else if (mode === 'chat') {
-        // --- 1) 記録後の雑談用 (JSONは任意) ---
         sys = `
         ${baseProfile}
         役割：ユーザーの記録に対する振り返り会話を行い、必要に応じて「次回の課題(regoalAI)」を微調整します。
@@ -164,7 +164,6 @@ async function fetchLLM(prompt, mode = 'analysis') {
         `;
     }
     else if (mode === 'goal_setting') {
-        // --- 2) 目標設定サポート用 ---
         sys = `
         ${baseProfile}
         役割：ユーザーへのインタビューを通して、「目標」「カテゴリ」「最初の一歩」を一緒に決定します。
@@ -172,31 +171,36 @@ async function fetchLLM(prompt, mode = 'analysis') {
         【プロセス】
         1. ユーザーに「やりたいこと」や「困っていること」を優しく聞き出し、目標を具体化してください。
         2. 会話を重ねて、目標・カテゴリ・第一歩の3点が明確に定まったら、
-           「では、この内容で目標を作成しますね！✨」のように明るく締めくくった上で、
+           「では、この内容で登録の準備をしますね！✨」のように明るく締めくくった上で、
            **最後に以下のJSONを出力して**終了してください。
            （※まだ相談中の場合はJSONを出さずに会話を続けてください）
         
         【禁止事項】
         ・「**」などのMarkdown記法（太字など）は使用しないでください。
-        ・「JSON形式でまとめます」「コーチング完了です」等のシステム的な発言は禁止です。
-        ・あくまで自然な会話として振る舞ってください。
-
+        ・「JSON形式でまとめます」等のシステム的な発言は禁止です。
+        
         【最終出力JSONフォーマット】
         {
-        "goal": "目標のタイトル（例：毎日10分読書）",
+        "goal": "目標のタイトル",
         "category": "仕事・キャリア / 健康・運動 / 趣味・教養 / 人間関係 / その他 のいずれか",
-        "step": "最初の一歩（例：本を机に置く）"
+        "step": "最初の一歩"
         }
         `;
     }
     
     const history = State.currentChat.map(m => ({ role: m.role==='bot'?'model':'user', parts:[{text:m.text}] }));
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒タイムアウト
+
         const response = await fetch('/api/gemini', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ history: history, message: prompt, systemInstruction: sys })
+            body: JSON.stringify({ history: history, message: prompt, systemInstruction: sys }),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
+
         if (!response.ok) throw new Error('API request failed');
         const data = await response.json();
         return data.text || "";
@@ -347,7 +351,7 @@ function initTop() {
     }
 }
 
-// 目標設定相談用（新規追加）
+// 目標設定相談用
 async function startGoalConsultation() {
     const t = document.getElementById('goal-consult-template').content.cloneNode(true);
     const backdrop = t.getElementById('consult-backdrop');
@@ -411,7 +415,10 @@ async function startGoalConsultation() {
         if (text) addMsg(text.replace(/\n/g, '<br>'), 'bot');
 
         if (data) {
-            // ★ showModalに変更
+            // ★ AIが完了判断したら、チャット画面をまず閉じる！
+            document.body.removeChild(backdrop);
+            
+            // 確認ダイアログのメッセージ作成
             const confirmMsg = `
                 <div class="text-left space-y-2">
                     <p class="mb-3 text-center font-bold text-emerald-600">この内容でセットしますか？</p>
@@ -423,8 +430,7 @@ async function startGoalConsultation() {
                 </div>
             `;
             
-            await new Promise(r => setTimeout(r, 500));
-
+            // 確認モーダルを表示
             const isOk = await showModal({ 
                 title: '目標の確認', 
                 message: confirmMsg, 
@@ -438,13 +444,14 @@ async function startGoalConsultation() {
                 if(mMain) mMain.value = data.goal;
                 if(mCat) mCat.value = data.category;
                 if(mStep) mStep.value = data.step;
-                
-                document.body.removeChild(backdrop);
             } else {
-                addMsg("了解です！修正したいところがあれば教えてくださいね 🌱", 'bot');
+                // キャンセルの場合は、またボタンを押して相談しなおしてもらう（履歴は消えるがバグるよりマシ）
+                // フォームは開いたまま
             }
+        } else {
+            // まだ会話が続く場合
+            send.disabled = false; send.textContent = '送信';
         }
-        send.disabled = false; send.textContent = '送信';
     };
 
     send.onclick = handleSend;
@@ -664,17 +671,17 @@ function initRecord() {
         addChatMessage(p.replace(/\n/g, '<br>'), 'user');
         
         try {
-            // ★モード 'analysis' で呼び出し
+            // ★モード 'analysis' で呼び出し (安全のため)
             const res = await fetchLLM(p, 'analysis');
             handleAIResponse(res, 'analysis');
         } catch(err) {
             console.error(err);
             addChatMessage("すみません、エラーが発生しました。もう一度試してください。", 'bot');
         } finally {
-            // ★成功・失敗に関わらず必ず画面を切り替える
+            // ★成功・失敗に関わらず必ず画面を切り替える（フリーズ防止）
             form.classList.add('hidden');
             chatArea.classList.remove('hidden');
-            initBtn.disabled = false; // 万が一戻った時のため
+            initBtn.disabled = false;
         }
     };
 
