@@ -1,6 +1,6 @@
 /**
  * LIFLO-AI Application Script
- * 最終更新: 2025/12/03 (OT視点プロンプト・表示制御調整版)
+ * Update: Goal Consultation & OT Logic Integration
  */
 
 const LOGO_DATA = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PC9zdmc+";
@@ -108,7 +108,16 @@ async function fetchGAS(method, data = {}) {
     }
 }
 
-// --- Core Logic: LLM Integration (Updated) ---
+function extractLLMData(txt) {
+    let c = txt.replace(/```json/g,'').replace(/```/g,'');
+    const f = c.indexOf('{'), l = c.lastIndexOf('}');
+    if(f!==-1 && l!==-1 && l>f){
+        try{ return { text: (c.substring(0,f)+c.substring(l+1)).trim(), data: JSON.parse(c.substring(f,l+1)) }; }catch(e){}
+    }
+    return { text: c, data: null };
+}
+
+// --- 1. Main LLM Logic (OT Record & Review) ---
 
 async function fetchLLM(prompt) {
     let currentContext = "";
@@ -177,18 +186,148 @@ async function fetchLLM(prompt) {
         return data.text || "";
     } catch (e) {
         console.error(e);
-        return "すみません、通信エラーが発生しました。もう一度試してみてください。";
+        return "すみません、通信エラーが発生しました。";
     }
 }
 
-function extractLLMData(txt) {
-    let c = txt.replace(/```json/g,'').replace(/```/g,'');
-    const f = c.indexOf('{'), l = c.lastIndexOf('}');
-    if(f!==-1 && l!==-1 && l>f){
-        try{ return { text: (c.substring(0,f)+c.substring(l+1)).trim(), data: JSON.parse(c.substring(f,l+1)) }; }catch(e){}
+// --- 2. Goal Consultation LLM Logic (Independent) ---
+
+async function fetchGoalConsultLLM(history, userInput) {
+    const sys = `
+    あなたは「ライフロ」です。ユーザーの「新しい目標設定」をサポートしてください。
+    
+    【役割】
+    ユーザーにインタビューを行い、以下の3つの情報を引き出してください。
+    1. **目標の内容**（何をしたいか）
+    2. **カテゴリ**（仕事・キャリア / 健康・運動 / 趣味・教養 / 人間関係 / その他 の中から推定）
+    3. **最初の一歩**（具体的に何から始めるか。例: 本を買う、アプリを開く）
+
+    【ルール】
+    - 一度に質問は1つずつにしてください。
+    - ユーザーが答えやすいよう、短く親しみやすく聞いてください。
+    - Markdownは使用せず、プレーンテキストで答えてください。
+    - 3つの情報が揃ったら、最後に必ず以下のJSONを出力して終了してください。
+
+    JSONフォーマット:
+    \`\`\`json
+    {
+      "goal": "目標のタイトル",
+      "category": "カテゴリ名(リストから選択)",
+      "step": "最初の一歩"
     }
-    return { text: c, data: null };
+    \`\`\`
+    `;
+
+    const contents = history.map(m => ({ role: m.role==='bot'?'model':'user', parts:[{text:m.text}] }));
+    contents.push({ role: 'user', parts: [{ text: userInput }] });
+
+    try {
+        const response = await fetch('/api/gemini', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ history: contents, message: userInput, systemInstruction: sys })
+        });
+        if (!response.ok) throw new Error('API request failed');
+        const data = await response.json();
+        return data.text || "";
+    } catch (e) {
+        console.error(e);
+        return "すみません、通信エラーです。";
+    }
 }
+
+// --- UI Logic: Goal Consultation ---
+
+async function startGoalConsultation(targetInputs) {
+    const template = document.getElementById('goal-consult-template');
+    if (!template) { alert('テンプレートエラー'); return; }
+
+    const clone = template.content.cloneNode(true);
+    const backdrop = clone.getElementById('consult-backdrop');
+    const logArea = clone.getElementById('consult-chat-area');
+    const input = clone.getElementById('consult-input');
+    const sendBtn = clone.getElementById('consult-send');
+    const closeBtn = clone.getElementById('consult-close');
+
+    document.body.appendChild(backdrop);
+
+    let chatHistory = []; // この相談セッションだけの履歴
+
+    const addMsg = (text, isUser) => {
+        const div = document.createElement('div');
+        div.className = `flex w-full ${isUser ? 'justify-end' : 'justify-start'}`;
+        
+        const icon = !isUser ? `<div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 shadow border border-gray-200 mr-2"><img src="${SMALL_ICON_URL}" class="w-4/5 h-4/5 object-contain"></div>` : '';
+        
+        div.innerHTML = `
+            ${icon}
+            <div class="max-w-[85%] p-3 rounded-lg text-sm shadow-sm ${isUser ? 'bg-emerald-100 text-gray-800' : 'bg-white border border-gray-200 text-gray-800'}">
+                ${text.replace(/\n/g, '<br>')}
+            </div>
+        `;
+        logArea.appendChild(div);
+        logArea.scrollTop = logArea.scrollHeight;
+        
+        if(!isUser && text) chatHistory.push({role: 'bot', text: text});
+    };
+
+    // 初期メッセージ
+    addMsg("こんにちは！✨\nどんな目標を立てたいですか？\n「英語を話せるようになりたい」や「健康になりたい」など、なんとなくでも大丈夫ですよ！🌱", false);
+
+    const handleSend = async () => {
+        const txt = input.value.trim();
+        if(!txt) return;
+        input.value = '';
+        
+        addMsg(txt, true);
+        
+        // API呼び出し用履歴（今回の発言はAPI関数内で追加するので、ここではまだ入れない）
+        sendBtn.disabled = true; sendBtn.textContent = '...';
+        
+        const resRaw = await fetchGoalConsultLLM(chatHistory, txt);
+        const { text, data } = extractLLMData(resRaw);
+        
+        if(text) addMsg(text, false);
+
+        if(data) {
+            // JSONが来たら完了処理
+            setTimeout(async () => {
+                await customAlert(`
+                    <div class="text-center">
+                        <p class="font-bold text-emerald-600 mb-2">目標案ができました！✨</p>
+                        <div class="text-left text-sm bg-gray-50 p-3 rounded space-y-1">
+                            <p><strong>目標:</strong> ${data.goal}</p>
+                            <p><strong>分野:</strong> ${data.category}</p>
+                            <p><strong>一歩:</strong> ${data.step}</p>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">入力フォームに反映します。</p>
+                    </div>
+                `);
+                
+                // フォームに反映
+                if(targetInputs.main) targetInputs.main.value = data.goal;
+                if(targetInputs.cat) targetInputs.cat.value = data.category;
+                if(targetInputs.step) targetInputs.step.value = data.step;
+                
+                // チャット画面を閉じる
+                document.body.removeChild(backdrop);
+            }, 800);
+        } else {
+            // まだ続く場合のみ履歴に追加
+            chatHistory.push({role: 'user', text: txt});
+        }
+        
+        sendBtn.disabled = false; sendBtn.textContent = '送信';
+        input.focus();
+    };
+
+    sendBtn.onclick = handleSend;
+    closeBtn.onclick = () => document.body.removeChild(backdrop);
+    // Enterキー対応
+    input.onkeypress = (e) => { if(e.key === 'Enter') handleSend(); };
+    setTimeout(() => input.focus(), 100);
+}
+
 
 // --- Render & Init Functions ---
 
@@ -414,7 +553,33 @@ function initGoals() {
     const addBtn = document.getElementById('add-goal-button');
     if(addBtn) {
         addBtn.onclick = async() => {
-            const i = await showModal({ title:'目標登録', showInput:true, inputType:'goal-form', showCancel:true });
+            const modalPromise = showModal({ title:'目標登録', showInput:true, inputType:'goal-form', showCancel:true });
+            
+            // ★目標相談ボタンの挿入処理
+            setTimeout(() => {
+                const formArea = document.getElementById('modal-goal-form');
+                const uidStr = State.userID.toString();
+                const isControl = uidStr.startsWith('26') && uidStr.length === 6;
+                
+                if(formArea && !document.getElementById('ai-consult-btn') && !isControl) {
+                    const btn = document.createElement('button');
+                    btn.id = 'ai-consult-btn';
+                    btn.className = "w-full mb-4 py-2 bg-emerald-100 text-emerald-700 font-bold rounded-lg hover:bg-emerald-200 transition flex items-center justify-center gap-2";
+                    btn.innerHTML = "<span>🤖</span> ライフロと相談して決める";
+                    
+                    btn.onclick = (e) => {
+                        e.preventDefault();
+                        const mMain = document.getElementById('goal-input-main');
+                        const mCat = document.getElementById('goal-input-category');
+                        const mStep = document.getElementById('goal-input-step');
+                        startGoalConsultation({ main: mMain, cat: mCat, step: mStep });
+                    };
+                    
+                    formArea.parentNode.insertBefore(btn, formArea);
+                }
+            }, 50);
+
+            const i = await modalPromise;
             if(!i) return;
             const fg = `${i.goal} (Cat:${i.category}, 1st:${i.step})`;
             await fetchGAS('POST', { action:'saveData', date:getFormattedDate(), userID:State.userID, userName:State.userName, goalNo:State.nextGoalNo, goal:fg });
