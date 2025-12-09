@@ -1,6 +1,6 @@
 /**
  * LIFLO-AI Application Script
- * Update: Goal Consultation & OT Logic Integration
+ * Update: Goal Consultation UX Improved (Random greeting, Auto-category, Natural closing)
  */
 
 const LOGO_DATA = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PC9zdmc+";
@@ -190,29 +190,31 @@ async function fetchLLM(prompt) {
     }
 }
 
-// --- 2. Goal Consultation LLM Logic (Independent) ---
+// --- 2. Goal Consultation LLM Logic (Improved UX) ---
 
 async function fetchGoalConsultLLM(history, userInput) {
     const sys = `
     あなたは「ライフロ」です。ユーザーの「新しい目標設定」をサポートしてください。
     
     【役割】
-    ユーザーにインタビューを行い、以下の3つの情報を引き出してください。
+    対話を通じて、以下の3つの情報を引き出してください。
     1. **目標の内容**（何をしたいか）
-    2. **カテゴリ**（仕事・キャリア / 健康・運動 / 趣味・教養 / 人間関係 / その他 の中から推定）
-    3. **最初の一歩**（具体的に何から始めるか。例: 本を買う、アプリを開く）
+    2. **カテゴリ**（リストからAIが推測して確認する）
+       - リスト: 仕事・キャリア / 健康・運動 / 趣味・教養 / 人間関係 / その他
+    3. **最初の一歩**（具体的なアクション）
 
     【ルール】
     - 一度に質問は1つずつにしてください。
-    - ユーザーが答えやすいよう、短く親しみやすく聞いてください。
     - Markdownは使用せず、プレーンテキストで答えてください。
-    - 3つの情報が揃ったら、最後に必ず以下のJSONを出力して終了してください。
+    - **カテゴリの決定方法**: ユーザーにリストから選ばせるのではなく、目標内容からあなたが推測し、「分野は『〇〇』で合っていますか？」と確認してください。
+    - **終了時の挙動**: 3つの情報が確定したら、「**JSONを出力します**」のような機械的な言葉は**絶対に言わない**でください。
+    - 代わりに、「では、この内容で確認画面を表示しますね！✨」のように自然に案内し、その直後にJSONを出力してください。
 
     JSONフォーマット:
     \`\`\`json
     {
       "goal": "目標のタイトル",
-      "category": "カテゴリ名(リストから選択)",
+      "category": "カテゴリ名(確定したもの)",
       "step": "最初の一歩"
     }
     \`\`\`
@@ -251,7 +253,7 @@ async function startGoalConsultation(targetInputs) {
 
     document.body.appendChild(backdrop);
 
-    let chatHistory = []; // この相談セッションだけの履歴
+    let chatHistory = []; 
 
     const addMsg = (text, isUser) => {
         const div = document.createElement('div');
@@ -271,8 +273,22 @@ async function startGoalConsultation(targetInputs) {
         if(!isUser && text) chatHistory.push({role: 'bot', text: text});
     };
 
-    // 初期メッセージ
-    addMsg("こんにちは！✨\nどんな目標を立てたいですか？\n「英語を話せるようになりたい」や「健康になりたい」など、なんとなくでも大丈夫ですよ！🌱", false);
+    // ★改善点1: ランダムな挨拶例の生成
+    const examples = [
+        "「英語を話せるようになりたい」",
+        "「毎朝ウォーキングしたい」",
+        "「資格の勉強を始めたい」",
+        "「もっと本を読みたい」",
+        "「節約して貯金したい」",
+        "「野菜中心の生活にしたい」",
+        "「部屋の片付けを習慣にしたい」"
+    ];
+    // ランダムに2つ選ぶ
+    const shuffled = examples.sort(() => 0.5 - Math.random());
+    const ex1 = shuffled[0];
+    const ex2 = shuffled[1];
+
+    addMsg(`こんにちは！✨\nどんな目標を立てたいですか？\n${ex1} や ${ex2} など、なんとなくでも大丈夫ですよ！🌱`, false);
 
     const handleSend = async () => {
         const txt = input.value.trim();
@@ -281,7 +297,6 @@ async function startGoalConsultation(targetInputs) {
         
         addMsg(txt, true);
         
-        // API呼び出し用履歴（今回の発言はAPI関数内で追加するので、ここではまだ入れない）
         sendBtn.disabled = true; sendBtn.textContent = '...';
         
         const resRaw = await fetchGoalConsultLLM(chatHistory, txt);
@@ -292,15 +307,19 @@ async function startGoalConsultation(targetInputs) {
         if(data) {
             // JSONが来たら完了処理
             setTimeout(async () => {
+                // チャット画面を閉じる（確認画面と重なると邪魔なので）
+                document.body.removeChild(backdrop);
+
+                // 確認用アラートを表示
                 await customAlert(`
                     <div class="text-center">
-                        <p class="font-bold text-emerald-600 mb-2">目標案ができました！✨</p>
-                        <div class="text-left text-sm bg-gray-50 p-3 rounded space-y-1">
-                            <p><strong>目標:</strong> ${data.goal}</p>
-                            <p><strong>分野:</strong> ${data.category}</p>
-                            <p><strong>一歩:</strong> ${data.step}</p>
+                        <p class="font-bold text-emerald-600 mb-2">この目標で登録しますか？✨</p>
+                        <div class="text-left text-sm bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
+                            <p><strong>🎯 目標:</strong> ${data.goal}</p>
+                            <p><strong>📂 分野:</strong> ${data.category}</p>
+                            <p><strong>👣 一歩:</strong> ${data.step}</p>
                         </div>
-                        <p class="text-xs text-gray-500 mt-2">入力フォームに反映します。</p>
+                        <p class="text-xs text-gray-500 mt-3">OKを押すとフォームに自動入力されます。</p>
                     </div>
                 `);
                 
@@ -309,9 +328,7 @@ async function startGoalConsultation(targetInputs) {
                 if(targetInputs.cat) targetInputs.cat.value = data.category;
                 if(targetInputs.step) targetInputs.step.value = data.step;
                 
-                // チャット画面を閉じる
-                document.body.removeChild(backdrop);
-            }, 800);
+            }, 800); // AIの発言を読んで一呼吸おいてから表示
         } else {
             // まだ続く場合のみ履歴に追加
             chatHistory.push({role: 'user', text: txt});
