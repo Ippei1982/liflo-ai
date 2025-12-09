@@ -125,7 +125,7 @@ async function fetchLLM(prompt, mode = 'analysis') {
                 : `【初期設定の第一歩】: ${firstStep}`;
         }
 
-        // ★修正点: JSONエラーを防ぐため、「改行禁止」などの指示を強化
+        // ★修正点: PEOモデルの説明を削除し、以前のシンプルな指示に戻しました
         sys = `
         ${baseProfile}
         役割：作業療法士(OT)のような視点で、挑戦と能力のバランス（フロー状態）を専門的に分析・調整します。
@@ -133,11 +133,7 @@ async function fetchLLM(prompt, mode = 'analysis') {
         目標: ${getGoalMainText(State.selectedGoal?.goal)}
         ${currentContext}
         【思考プロセス】
-        ユーザーの自己評価数値には影響されず、以下の視点（PEOモデル）を用いて客観的に評価してください。
-        1. Person (本人): 疲労度、モチベーション、スキル
-        2. Environment (環境): 時間帯、場所、妨害要因
-        3. Occupation (作業): 難易度、複雑さ
-        これらを総合し、フロー状態（挑戦と能力の均衡）の観点から判定を行ってください。
+        ユーザーの自己評価数値には影響されず、PEOモデルに基づき客観的に評価してください。
 
         【出力生成】
         以下のJSON形式のみを出力してください（Markdown不可）。
@@ -146,7 +142,7 @@ async function fetchLLM(prompt, mode = 'analysis') {
         {
         "challengeAI": 1-7 (AI評価),
         "skillAI": 1-7 (AI評価),
-        "reasonAI": "ライフロの口調で記述した根拠（PEO要素を交えつつ、改行せずに簡潔に）",
+        "reasonAI": "ライフロの口調で記述した根拠",
         "regoalAI": "30文字以内の具体的で短いアクションフレーズ"
         }
         `;
@@ -177,13 +173,14 @@ async function fetchLLM(prompt, mode = 'analysis') {
         
         【禁止事項】
         ・「**」などのMarkdown記法（太字など）は使用しないでください。
-        ・「JSON形式でまとめます」等のシステム的な発言は禁止です。
-        
+        ・「JSON形式でまとめます」「コーチング完了です」等のシステム的な発言は禁止です。
+        ・あくまで自然な会話として振る舞ってください。
+
         【最終出力JSONフォーマット】
         {
-        "goal": "目標のタイトル",
+        "goal": "目標のタイトル（例：毎日10分読書）",
         "category": "仕事・キャリア / 健康・運動 / 趣味・教養 / 人間関係 / その他 のいずれか",
-        "step": "最初の一歩"
+        "step": "最初の一歩（例：本を机に置く）"
         }
         `;
     }
@@ -351,7 +348,7 @@ function initTop() {
     }
 }
 
-// 目標設定相談用
+// 目標設定相談用（修正版：チャット自動クローズ＆ユーザーアイコンなし）
 async function startGoalConsultation() {
     const t = document.getElementById('goal-consult-template').content.cloneNode(true);
     const backdrop = t.getElementById('consult-backdrop');
