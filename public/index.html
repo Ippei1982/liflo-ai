@@ -16,6 +16,22 @@
 <body class="min-h-screen flex items-center justify-center p-2 md:p-4">
     <div id="app" class="bg-white rounded-lg md:rounded-xl shadow-2xl w-full max-w-4xl p-3 md:p-10 border border-emerald-100 relative min-h-[90vh] md:min-h-0 flex flex-col"></div>
 
+    <template id="goal-consult-template">
+        <div class="fixed inset-0 z-[60] flex items-center justify-center modal-overlay p-4" id="consult-backdrop">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-md h-[80vh] flex flex-col transform transition-all scale-100 relative">
+                <button id="consult-close" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">✕</button>
+                <div class="p-4 border-b border-gray-100 text-center bg-emerald-50 rounded-t-xl">
+                    <h3 class="font-bold text-emerald-800">ライフロと目標を見つける 🌱</h3>
+                </div>
+                <div id="consult-chat-area" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50"></div>
+                <div class="p-3 border-t border-gray-200 bg-white rounded-b-xl flex gap-2">
+                    <input type="text" id="consult-input" class="flex-1 border border-gray-300 rounded-lg p-2" placeholder="最近疲れてて...">
+                    <button id="consult-send" class="bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold">送信</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
     <template id="modal-template">
         <div class="fixed inset-0 z-50 flex items-center justify-center modal-overlay p-4" id="modal-backdrop">
             <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100">
