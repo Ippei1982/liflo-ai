@@ -101,49 +101,87 @@ async function fetchGAS(method, data = {}) {
     }
 }
 
-async function fetchLLM(prompt) {
-    let currentContext = "";
-    let latestRegoal = null;
-    if (State.selectedGoal) {
-        const goalRecords = State.userRecords.filter(r => r.goalNo == State.selectedGoal.goalNo).sort((a, b) => new Date(b.date) - new Date(a.date));
-        const latestRec = goalRecords.find(r => r.regoalAI);
-        if (latestRec) {
-            latestRegoal = latestRec.regoalAI;
-            currentContext = `【現在の調整課題 (最優先)】: ${latestRegoal}\n(※この課題の続きとして対話してください)`;
-        } else {
-            const firstStep = State.selectedGoal.goal.split('1st:')[1]?.slice(0, -1) || '不明';
-            currentContext = `【初期設定の第一歩】: ${firstStep}\n(※もしユーザーの進捗がこれを越えている場合は、会話内容を優先してください)`;
-        }
-    }
-    const sys = `
+async function fetchLLM(prompt, mode = 'analysis') {
+    let sys = '';
+    
+    // 共通のキャラクター設定
+    const baseProfile = `
     あなたは「ライフロ」という名前のAIコーチ（妖精のキャラクター）です。
-    役割：ユーザーの目標達成を支援するため、作業療法士(OT)のような視点で、挑戦と能力のバランス（フロー状態）を専門的に分析・調整します。
-    口調：親しみやすく、元気で、絵文字（ 🌱 ,  🚀 ,  ✨ など）を多用する。「〜ですね！」「〜しましょう！」など。
-    ★ユーザー名：「${State.userName}」さん
-    【コンテキスト】
-    目標: ${getGoalMainText(State.selectedGoal?.goal)}
-    ${currentContext}
-    【★思考プロセス（最重要：AIによる独立評価）】
-    ユーザーが入力した「数値（CSバランス）」には**一切影響されずに**、会話内容・行動事実・環境要因のみから、ゼロベースで以下の基準で評価を行ってください。
-    1. **PEOモデル（Person-Environment-Occupation）に基づく分析**:
-    - **挑戦度 (Challenge)**: ユーザーの主観的な「辛さ」ではなく、対象となった課題・行動・思考の「本質的な難しさ・構造的複雑性（知的探求含む）」を客観的に評価してください。
-    - **能力度 (Skill)**: ユーザーの自信の有無ではなく、その課題に対して「どの程度、有効な知識・技能・工夫・行動を発揮できたか（パフォーマンス）」を評価してください。
-    2. **時間軸と全体像の考慮**:
-    - 一時的な成功/失敗に依存せず、目標全体における現在地（初期/中盤/仕上げ）やゴールとの距離感を踏まえて判断してください。
-    3. **比較と結論**:
-    - あなたが導き出した客観的評価と、ユーザーの自己評価が**食い違っていても構いません（むしろそのズレが重要です）。**
-    【★出力生成】
-    上記の思考プロセスで導き出した**「AI独自の評価」とその「根拠」**を、以下のJSON形式で出力してください。
-    **JSON内のテキストは、全て「ライフロ」のキャラクター口調（丁寧なタメ口・絵文字あり）に翻訳して記述すること。**
-    JSONフォーマット:
-    {
-    "challengeAI": 1-7 (AIが独自に判定した数値),
-    "skillAI": 1-7 (AIが独自に判定した数値),
-    "reasonAI": "『私の見立てでは〜〜です。なぜなら〜〜だからです』という内容を、親しみやすく伝える文章。\n（例：『私から見ると、今回は少し「退屈」寄りだったかも？ 🤔  だって、〇〇さんはもうこの作業を完全にマスターしていて、余裕でこなせているからです！ ✨ 』など、行動と事実に焦点を当てて根拠を語る）",
-    "regoalAI": "提案する調整課題。次回の挨拶で『前回の課題は【これ】でしたね！』と引用しやすいよう、『〇〇をやってみる！ 🔥 』や『〇〇を意識する ✨ 』のような、30文字以内の具体的で短いアクションフレーズにする。"
-    }
-    ※ JSONのみを出力してください。Markdownタグは不要です。
+    ユーザー名：「${State.userName}」さん
+    口調：親しみやすく、元気で、絵文字（ 🌱 , 🚀 , ✨ など）を多用する。「〜ですね！」「〜しましょう！」など。
     `;
+
+    // モード別プロンプト定義
+    if (mode === 'analysis') {
+        // --- 既存の記録分析用 (JSON必須) ---
+        let currentContext = "";
+        let latestRegoal = null;
+        if (State.selectedGoal) {
+             const goalRecords = State.userRecords.filter(r => r.goalNo == State.selectedGoal.goalNo).sort((a, b) => new Date(b.date) - new Date(a.date));
+             const latestRec = goalRecords.find(r => r.regoalAI);
+             if (latestRec) latestRegoal = latestRec.regoalAI;
+             const firstStep = State.selectedGoal.goal.split('1st:')[1]?.slice(0, -1) || '不明';
+             currentContext = latestRegoal 
+                ? `【現在の調整課題 (最優先)】: ${latestRegoal}\n(※この課題の続きとして対話してください)`
+                : `【初期設定の第一歩】: ${firstStep}`;
+        }
+
+        sys = `
+        ${baseProfile}
+        役割：作業療法士(OT)のような視点で、挑戦と能力のバランス（フロー状態）を専門的に分析・調整します。
+        【コンテキスト】
+        目標: ${getGoalMainText(State.selectedGoal?.goal)}
+        ${currentContext}
+        【思考プロセス】
+        ユーザーの自己評価数値には影響されず、以下の視点を用いて客観的に評価してください。
+        **PEOモデル分析**:
+        1. Person (本人): 疲労度、モチベーション、スキルの習熟度
+        2. Environment (環境): 時間帯、場所、妨害要因の有無
+        3. Occupation (作業): その課題が持つ本来の難易度や複雑さ
+        これらを総合し、フロー状態（挑戦と能力の均衡）の観点から判定を行ってください。
+
+        【出力生成】
+        以下のJSON形式のみを出力してください（Markdown不可）。
+        {
+        "challengeAI": 1-7 (AI評価),
+        "skillAI": 1-7 (AI評価),
+        "reasonAI": "ライフロの口調で記述した根拠（PEOの要素を交えて具体的に）",
+        "regoalAI": "30文字以内の具体的で短いアクションフレーズ"
+        }
+        `;
+    } 
+    else if (mode === 'chat') {
+        // --- 1) 記録後の雑談用 (JSONは任意) ---
+        sys = `
+        ${baseProfile}
+        役割：ユーザーの記録に対する振り返り会話を行い、必要に応じて「次回の課題(regoalAI)」を微調整します。
+        
+        【ルール】
+        1. ユーザーの話に共感し、励ましたりアドバイスをしてください。
+        2. **もし会話の中で「次回の課題」を変更した方が良い流れになった場合のみ**、
+           会話の最後に以下のJSONをつけてください。変更不要ならJSONは出力しないでください。
+           {"regoalAI": "新しい調整課題"}
+        `;
+    }
+    else if (mode === 'goal_setting') {
+        // --- 2) 目標設定サポート用 ---
+        sys = `
+        ${baseProfile}
+        役割：ユーザーへのインタビューを通して、「目標」「カテゴリ」「最初の一歩」を一緒に決定します。
+        
+        【プロセス】
+        1. ユーザーに「やりたいこと」や「困っていること」を優しく聞き出してください。
+        2. 会話を重ねて、目標が明確になったら、最後に以下のJSONを出力して終了してください。
+           まだ相談中の場合は、JSONは出さずに会話を続けてください。
+        
+        【最終出力JSONフォーマット】
+        {
+        "goal": "目標のタイトル（例：毎日10分読書）",
+        "category": "仕事・キャリア / 健康・運動 / 趣味・教養 / 人間関係 / その他 のいずれか",
+        "step": "最初の一歩（例：本を机に置く）"
+        }
+        `;
+    }
     
     const history = State.currentChat.map(m => ({ role: m.role==='bot'?'model':'user', parts:[{text:m.text}] }));
     try {
@@ -301,6 +339,67 @@ function initTop() {
         if (theoryBtn) theoryBtn.style.display = 'none';
     }
 }
+
+// 目標設定相談用（新規追加）
+async function startGoalConsultation() {
+    const t = document.getElementById('goal-consult-template').content.cloneNode(true);
+    const backdrop = t.getElementById('consult-backdrop');
+    const area = t.getElementById('consult-chat-area');
+    const input = t.getElementById('consult-input');
+    const send = t.getElementById('consult-send');
+    const close = t.getElementById('consult-close');
+
+    document.body.appendChild(backdrop);
+    State.currentChat = []; // チャット履歴リセット
+
+    // ヘルパー: メッセージ追加
+    const addMsg = (txt, role) => {
+        const d = document.createElement('div');
+        d.className = role === 'user' ? 'flex justify-end' : 'flex justify-start';
+        d.innerHTML = `<div class="max-w-[85%] p-3 rounded-lg text-sm ${role==='user'?'bg-emerald-100 text-gray-800':'bg-white border border-gray-200 shadow-sm'}">${txt}</div>`;
+        area.appendChild(d);
+        area.scrollTop = area.scrollHeight;
+        State.currentChat.push({role, text:txt});
+    };
+
+    // 初期メッセージ
+    const initMsg = "こんにちは！一緒に目標を考えましょう！✨ \nまずは、最近「やってみたいこと」や「気になっていること」、あるいは「やらなきゃいけないこと」はありますか？";
+    addMsg(initMsg.replace(/\n/g, '<br>'), 'bot');
+
+    const handleSend = async () => {
+        const txt = input.value.trim();
+        if(!txt) return;
+        input.value = '';
+        addMsg(txt, 'user');
+        send.disabled = true; send.textContent = '...';
+
+        // ★ mode: 'goal_setting' で呼び出し
+        const resRaw = await fetchLLM(txt, 'goal_setting');
+        const { text, data } = extractLLMData(resRaw);
+
+        if (text) addMsg(text.replace(/\n/g, '<br>'), 'bot');
+
+        if (data) {
+            // JSONが返ってきたら完了とみなす
+            if(confirm(`以下の内容で入力欄に反映しますか？\n\n目標: ${data.goal}\nカテゴリ: ${data.category}\n一歩: ${data.step}`)) {
+                // 親モーダルの入力欄にセット
+                const mMain = document.getElementById('goal-input-main');
+                const mCat = document.getElementById('goal-input-category');
+                const mStep = document.getElementById('goal-input-step');
+                if(mMain) mMain.value = data.goal;
+                if(mCat) mCat.value = data.category;
+                if(mStep) mStep.value = data.step;
+                
+                document.body.removeChild(backdrop); // チャットモーダルを閉じる
+            }
+        }
+        send.disabled = false; send.textContent = '送信';
+    };
+
+    send.onclick = handleSend;
+    close.onclick = () => document.body.removeChild(backdrop);
+}
+
 function initGoals() {
     const lst = document.getElementById('goal-list');
     let currentTab = 'active';
@@ -385,9 +484,34 @@ function initGoals() {
         });
     };
     const addBtn = document.getElementById('add-goal-button');
+
+    // ★ 統制群チェック
+    const uidStr = State.userID.toString();
+    const isControl = uidStr.startsWith('26') && uidStr.length === 6;
+
     if(addBtn) {
         addBtn.onclick = async() => {
-            const i = await showModal({ title:'目標登録', showInput:true, inputType:'goal-form', showCancel:true });
+            const modalPromise = showModal({ title:'目標登録', showInput:true, inputType:'goal-form', showCancel:true });
+
+            // ★ 統制群でなければ「ライフロと相談」ボタンを注入
+            if (!isControl) {
+                setTimeout(() => {
+                    const formContainer = document.getElementById('modal-goal-form');
+                    if(formContainer && !document.getElementById('consult-btn')) {
+                        const consultBtn = document.createElement('button');
+                        consultBtn.id = 'consult-btn';
+                        consultBtn.className = 'w-full py-2 bg-emerald-100 text-emerald-700 font-bold rounded-lg mb-4 hover:bg-emerald-200 transition flex items-center justify-center gap-2';
+                        consultBtn.innerHTML = '<span>🤖</span> ライフロと一緒に目標を考える';
+                        consultBtn.onclick = (e) => {
+                            e.preventDefault(); // 親モーダルが閉じないように
+                            startGoalConsultation();
+                        };
+                        formContainer.insertBefore(consultBtn, formContainer.firstChild);
+                    }
+                }, 50);
+            }
+
+            const i = await modalPromise;
             if(!i) return;
             const fg = `${i.goal} (Cat:${i.category}, 1st:${i.step})`;
             await fetchGAS('POST', { action:'saveData', date:getFormattedDate(), userID:State.userID, userName:State.userName, goalNo:State.nextGoalNo, goal:fg });
@@ -439,7 +563,7 @@ function initRecord() {
         initBtn.textContent = '記録してライフロと相談する 🚀';
     }
 
-    const handleAIResponse = (raw) => {
+    const handleAIResponse = (raw, mode) => {
         const { text, data } = extractLLMData(raw);
         let firstMsgElement = null;
 
@@ -456,13 +580,25 @@ function initRecord() {
         } else {
             // 通常：AI応答表示
             if(text) { firstMsgElement = addChatMessage(text.replace(/\n/g, '<br>'), 'bot'); }
-            if(data){
+            
+            if (mode === 'analysis' && data) {
+                // 初回分析: 全データを保存
                 State.pendingData = data;
+                
                 const analysisHtml = `<div class="border-b border-blue-200 pb-2 mb-2"><div class="font-bold text-orange-600"> 📊 ライフロの見立て (挑戦${data.challengeAI}/能力${data.skillAI})</div><div class="font-bold text-blue-600 mt-1"> 🤔 ライフロの分析</div></div><div class="text-gray-700">${data.reasonAI}</div>`;
                 const analysisMsg = addChatMessage(analysisHtml, 'bot', 'analysis');
                 if (!firstMsgElement) firstMsgElement = analysisMsg;
-                const goalHtml = `<div class="font-bold text-green-600 mb-1 border-b border-green-200 pb-1"> 🚩 今後の目標／課題</div>${data.regoalAI}`;
+                
+                const goalHtml = `<div class="font-bold text-green-600 mb-1 border-b border-green-200 pb-1"> 🚩 今後の目標／課題</div><div id="regoal-display">${data.regoalAI}</div>`;
                 addChatMessage(goalHtml, 'bot', 'regoal');
+            } 
+            else if (mode === 'chat') {
+                // 追記チャット: Regoalのみ更新の可能性あり
+                if (data && data.regoalAI) {
+                    State.pendingData.regoalAI = data.regoalAI; // Regoalのみ上書き
+                    const updateHtml = `<div class="font-bold text-green-600 mb-1 border-b border-green-200 pb-1"> 🚩 課題を更新しました！</div>${data.regoalAI}`;
+                    addChatMessage(updateHtml, 'bot', 'regoal');
+                }
             }
         }
         
@@ -482,8 +618,11 @@ function initRecord() {
         State.recordData = { challengeU:c, skillU:s, reasonU:r };
         const p = `目標: ${getGoalMainText(State.selectedGoal.goal)}\n自己評価: 挑戦${c}/能力${s}\n理由: ${r}`;
         addChatMessage(p.replace(/\n/g, '<br>'), 'user');
-        const res = await fetchLLM(p);
-        handleAIResponse(res);
+        
+        // ★モード 'analysis' で呼び出し
+        const res = await fetchLLM(p, 'analysis');
+        handleAIResponse(res, 'analysis');
+        
         form.classList.add('hidden');
         chatArea.classList.remove('hidden');
     };
@@ -492,10 +631,14 @@ function initRecord() {
         if(!txt) return;
         chatInput.value='';
         sendBtn.disabled=true; sendBtn.textContent='...';
+        
         addChatMessage(txt.replace(/\n/g, '<br>'), 'user');
         State.recordData.reasonU += `\n(追記) ${txt}`;
-        const res = await fetchLLM(txt);
-        handleAIResponse(res);
+        
+        // ★モード 'chat' で呼び出し
+        const res = await fetchLLM(txt, 'chat');
+        handleAIResponse(res, 'chat');
+        
         sendBtn.disabled=false; sendBtn.textContent='送信';
     };
     saveBtn.onclick = async() => {
