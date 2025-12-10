@@ -1,121 +1,180 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ライフロ-AI (LIFLO-AI)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="icon" href="icon/icon-192x192.png">
-    <link rel="apple-touch-icon" href="icon/icon-192x192.png">
-    <meta name="apple-mobile-web-app-title" content="ライフロ">
-    <meta name="application-name" content="ライフロ">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ライフロ-AI (LIFLO-AI)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+body {
+font-family: 'Inter', sans-serif;
+background-color: #f0fdf4;
+}
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.radio-label { transition: all 0.2s; cursor: pointer; flex-grow: 1; }
+.radio-input:checked + .radio-label {
+background-color: #10b981;
+color: white;
+box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+.flow-chart-container {
+position: relative; width: 100%; max-width: 500px; margin: 0 auto;
+aspect-ratio: 1 / 1;
+}
+.modal-overlay { background-color: rgba(0, 0, 0, 0.5); }
+.chat-bubble { position: relative; }
+.chat-bubble-user::after {
+content: ''; position: absolute; top: 12px; right: -8px;
+border-width: 8px 0 8px 10px; border-style: solid;
+border-color: transparent transparent transparent #dcfce7;
+}
+/* AIの吹き出しのしっぽ（通常用） */
+.chat-bubble-ai::after {
+content: ''; position: absolute; top: 12px; left: -8px;
+border-width: 8px 10px 8px 0; border-style: solid;
+border-color: transparent #ecfdf5 transparent transparent;
+}
+/* AIの吹き出しのしっぽ（分析用・青） */
+.chat-bubble-analysis::after {
+content: ''; position: absolute; top: 12px; left: -8px;
+border-width: 8px 10px 8px 0; border-style: solid;
+border-color: transparent #eff6ff transparent transparent; /* blue-50 */
+}
+/* AIの吹き出しのしっぽ（課題用・オレンジ） */
+.chat-bubble-regoal::after {
+content: ''; position: absolute; top: 12px; left: -8px;
+border-width: 8px 10px 8px 0; border-style: solid;
+border-color: transparent #fff7ed transparent transparent; /* orange-50 */
+}
+</style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-2 md:p-4">
-    <div id="app" class="bg-white rounded-lg md:rounded-xl shadow-2xl w-full max-w-4xl p-3 md:p-10 border border-emerald-100 relative min-h-[90vh] md:min-h-0 flex flex-col"></div>
-
-    <template id="goal-consult-template">
-        <div class="fixed inset-0 z-[60] flex items-center justify-center modal-overlay p-4" id="consult-backdrop">
-            <div class="bg-white rounded-xl shadow-2xl w-full max-w-md h-[80vh] flex flex-col transform transition-all scale-100 relative">
-                <button id="consult-close" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">✕</button>
-                <div class="p-4 border-b border-gray-100 text-center bg-emerald-50 rounded-t-xl">
-                    <h3 class="font-bold text-emerald-800">ライフロと目標を見つける 🌱</h3>
-                </div>
-                <div id="consult-chat-area" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-                    </div>
-                <div class="p-3 border-t border-gray-200 bg-white rounded-b-xl flex gap-2">
-                    <input type="text" id="consult-input" class="flex-1 border border-gray-300 rounded-lg p-2" placeholder="最近疲れてて...">
-                    <button id="consult-send" class="bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold">送信</button>
-                </div>
-            </div>
-        </div>
-    </template>
-
-    
-    <template id="modal-template">
-        <div class="fixed inset-0 z-50 flex items-center justify-center modal-overlay p-4" id="modal-backdrop">
-            <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100">
-                <h3 class="text-xl font-bold text-gray-800 mb-4" id="modal-title">タイトル</h3>
-                <div class="text-gray-600 mb-6 text-base" id="modal-content"></div>
-                <div id="modal-input-container" class="hidden mb-6">
-                    <input type="text" id="modal-input" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 text-lg" placeholder="入力してください">
-                </div>
-                <div id="modal-goal-form" class="hidden mb-6 space-y-4">
-                    <div><label class="block text-base font-medium text-gray-700">目標内容 <span class="text-red-500">*</span></label><input type="text" id="goal-input-main" class="mt-1 w-full border border-gray-300 rounded-lg p-3 text-lg" placeholder="例: 毎日30分プログラミング"></div>
-                    <div><label class="block text-base font-medium text-gray-700">カテゴリ</label><select id="goal-input-category" class="mt-1 w-full border border-gray-300 rounded-lg p-3 text-lg"><option value="仕事・キャリア">仕事・キャリア</option><option value="健康・運動">健康・運動</option><option value="趣味・教養">趣味・教養</option><option value="人間関係">人間関係</option><option value="その他">その他</option></select></div>
-                    <div><label class="block text-base font-medium text-gray-700">最初の一歩</label><input type="text" id="goal-input-step" class="mt-1 w-full border border-gray-300 rounded-lg p-3 text-lg" placeholder="例: 参考書を開く"></div>
-                    <div><label class="block text-sm font-medium text-gray-700">状態 (ステータス)</label><select id="goal-input-status" class="mt-1 w-full border border-gray-300 rounded-lg p-3"><option value=""> 🚀 進行中</option><option value="達成"> 🎉 達成</option><option value="中止"> ⏹️ 中止</option></select></div>
-                </div>
-                <div class="flex justify-end space-x-3">
-                    <button id="modal-cancel" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition hidden text-lg">キャンセル</button>
-                    <button id="modal-ok" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-lg">OK</button>
-                </div>
-            </div>
-        </div>
-    </template>
-
-    <template id="login-template">
-    <div class="space-y-6">
-        <div class="flex flex-row items-center justify-center gap-4 mb-2">
-            <div class="flex-shrink-0">
-                <img src="https://i.gyazo.com/f54df4cfd34805089575f9d7bd268103.png" alt="LIFLO-AI Logo" width="80" class="object-contain">
-            </div>
-            <div class="text-left">
-                <h1 class="text-2xl md:text-3xl font-bold text-emerald-600 leading-tight">
-                    ライフロ-AI<br>へようこそ！ 🚀
-                </h1>
-            </div>
-        </div>
-        <p class="text-center text-gray-600">あなたの生活目標の達成を「ライフロ」がサポートします！</p>
-        
-        <div class="space-y-4">
-            <div>
-                <label for="userName" class="block text-sm font-medium text-gray-700">ニックネーム</label>
-                <input type="text" id="userName" name="userName" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-emerald-500 focus:ring-emerald-500" placeholder="他のユーザーと重複不可" required>
-            </div>
-            <div>
-                <label for="userID" class="block text-sm font-medium text-gray-700">暗証番号</label>
-                <input type="number" id="userID" name="userID" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-emerald-500 focus:ring-emerald-500" placeholder="数字のみ (例: 101)" required>
-            </div>
-        </div>
-
-        <div id="terms-container" class="mb-2 p-4 bg-gray-50 rounded-lg border border-gray-200 text-xs text-gray-500 max-w-md mx-auto">
-            <label class="flex items-start gap-2 cursor-pointer">
-                <input type="checkbox" id="terms-check" class="mt-1 shrink-0">
-                <span>
-                    <span class="font-bold text-gray-700">【利用規約・免責事項】</span><br>
-                    本アプリは医療行為を提供するものではありません。身体的・精神的な不調を感じた場合は、速やかに専門機関にご相談ください。<br>
-                    また、入力された内容はAIにより自動解析されます。<br>
-                    <span class="text-emerald-600 font-bold">上記に同意して利用を開始します。</span>
-                </span>
-            </label>
-        </div>
-        <button id="login-button" class="w-full py-3 px-4 rounded-lg shadow-md text-white bg-emerald-600 hover:bg-emerald-700 font-semibold">ログイン 👋 </button>
-        <button id="register-button" class="w-full py-3 px-4 border border-emerald-600 rounded-lg shadow-md text-emerald-600 bg-white hover:bg-emerald-50 font-semibold">新規登録はこちら</button>
-    </div>
+<body class="min-h-screen flex items-center justify-center p-4">
+<div id="app" class="bg-white rounded-xl shadow-2xl w-full max-w-4xl p-6 md:p-10 border border-emerald-100 relative"></div>
+<template id="modal-template">
+<div class="fixed inset-0 z-50 flex items-center justify-center modal-overlay" id="modal-backdrop">
+<div class="bg-white rounded-xl shadow-2xl w-11/12 max-w-md p-6 transform transition-all scale-100">
+<h3 class="text-xl font-bold text-gray-800 mb-4" id="modal-title">タイトル</h3>
+<div class="text-gray-600 mb-6" id="modal-content"></div>
+<div id="modal-input-container" class="hidden mb-6">
+<input type="text" id="modal-input" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500" placeholder="入力してください">
+</div>
+<div id="modal-goal-form" class="hidden mb-6 space-y-4">
+<div>
+<label class="block text-sm font-medium text-gray-700">目標内容 <span class="text-red-500">*</span></label>
+<input type="text" id="goal-input-main" class="mt-1 w-full border border-gray-300 rounded-lg p-3" placeholder="例: 毎日30分プログラミング">
+</div>
+<div>
+<label class="block text-sm font-medium text-gray-700">カテゴリ</label>
+<select id="goal-input-category" class="mt-1 w-full border border-gray-300 rounded-lg p-3">
+<option value="仕事・キャリア">仕事・キャリア</option>
+<option value="健康・運動">健康・運動</option>
+<option value="趣味・教養">趣味・教養</option>
+<option value="人間関係">人間関係</option>
+<option value="その他">その他</option>
+</select>
+</div>
+<div>
+<label class="block text-sm font-medium text-gray-700">最初の一歩</label>
+<input type="text" id="goal-input-step" class="mt-1 w-full border border-gray-300 rounded-lg p-3" placeholder="例: 参考書を開く">
+</div>
+</div>
+<div class="flex justify-end space-x-3">
+<button id="modal-cancel" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition hidden">キャンセル</button>
+<button id="modal-ok" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition">OK</button>
+</div>
+</div>
+</div>
 </template>
 
-    <template id="top-menu-template">
-        <div class="space-y-6 h-full flex flex-col">
-            <div class="flex flex-col items-center justify-center mb-4 mt-4">
-                <div class="flex flex-row items-center justify-center gap-4 w-full max-w-md"><div class="flex-shrink-0"><img src="https://i.gyazo.com/f54df4cfd34805089575f9d7bd268103.png" alt="LIFLO-AI Logo" width="80" class="object-contain"></div><div class="text-left"><h1 class="text-2xl md:text-3xl font-bold text-emerald-600 leading-tight">ライフロ-AI<br>へようこそ！ 🚀</h1></div></div>
-                <p class="text-lg md:text-xl text-gray-700 mt-3"><span id="welcome-userName" class="font-bold"></span> さん 🌈 </p>
-                <p class="text-gray-600 text-xs md:text-sm mt-1">下のメニューから、今やりたいことを選んでくださいね 🌱 </p>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 flex-1 overflow-y-auto pb-4">
-                <button data-action="goals" class="menu-button p-4 md:p-6 bg-emerald-500 text-white rounded-xl shadow-lg hover:bg-emerald-600 text-left active:scale-95 transition-transform"><span class="text-xl md:text-2xl font-bold block mb-1"> ① 目標管理・変更 🎯 </span><span class="text-xs md:text-sm opacity-90">目標の登録や修正、達成/中止を行います。</span></button>
-                <button data-action="record" class="menu-button p-4 md:p-6 bg-teal-500 text-white rounded-xl shadow-lg hover:bg-teal-600 text-left active:scale-95 transition-transform"><span class="text-xl md:text-2xl font-bold block mb-1"> ② 記録の入力！ ✍️ </span><span class="text-xs md:text-sm opacity-90">「ライフロ」と一緒に目標に対する記録を行ってみましょう！</span></button>
-                <button data-action="review" class="menu-button p-4 md:p-6 bg-cyan-500 text-white rounded-xl shadow-lg hover:bg-cyan-600 text-left active:scale-95 transition-transform"><span class="text-xl md:text-2xl font-bold block mb-1"> ③ 記録を振り返る 📈 </span><span class="text-xs md:text-sm opacity-90">これまでの記録を確認してみましょう！</span></button>
-                <button data-action="theory" class="menu-button p-4 md:p-6 bg-lime-500 text-white rounded-xl shadow-lg hover:bg-lime-600 text-left active:scale-95 transition-transform"><span class="text-xl md:text-2xl font-bold block mb-1"> ④ フローとは？ 💡 </span><span class="text-xs md:text-sm opacity-90">「ライフロ-AI」で応用しているフロー理論について紹介しています！</span></button>
-            </div>
-            <div class="mt-auto pt-4 border-t border-gray-100"><button id="logout-button" class="w-full py-3 px-4 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-800 transition font-medium text-center text-base">ログアウト</button></div>
-        </div>
-    </template>
+<template id="login-template">
+<div class="space-y-6">
+<div class="flex flex-row items-center justify-center gap-4 mb-2">
+<div class="flex-shrink-0">
+<img src="https://i.gyazo.com/f54df4cfd34805089575f9d7bd268103.png" alt="LIFLO-AI Logo" width="80" class="object-contain">
+</div>
+<div class="text-left">
+<h1 class="text-2xl md:text-3xl font-bold text-emerald-600 leading-tight">
+ライフロ-AI<br>へようこそ！ 🚀
+</h1>
+</div>
+</div>
+<p class="text-center text-gray-600">あなたの生活目標の達成を「ライフロ」がサポートします！</p>
+<div class="space-y-4">
+<div>
+<label for="userName" class="block text-sm font-medium text-gray-700">ニックネーム</label>
+<input type="text" id="userName" name="userName" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-emerald-500 focus:ring-emerald-500" placeholder="他のユーザーと重複不可" required>
+</div>
+<div>
+<label for="userID" class="block text-sm font-medium text-gray-700">暗証番号</label>
+<input type="number" id="userID" name="userID" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-emerald-500 focus:ring-emerald-500" placeholder="数字のみ (例: 101)" required>
+</div>
+</div>
 
-    <template id="goal-management-template">
-    <div class="space-y-6 pb-20"> <h2 class="text-3xl font-bold text-emerald-600"> 🎯 目標管理マイページ</h2>
+<div id="terms-container" class="mb-2 p-4 bg-gray-50 rounded-lg border border-gray-200 text-xs text-gray-500 max-w-md mx-auto">
+    <label class="flex items-start gap-2 cursor-pointer">
+        <input type="checkbox" id="terms-check" class="mt-1 shrink-0">
+        <span>
+            <span class="font-bold text-gray-700">【利用規約・免責事項】</span><br>
+            本アプリは医療行為を提供するものではありません。身体的・精神的な不調を感じた場合は、速やかに専門機関にご相談ください。<br>
+            また、入力された内容はAIにより自動解析されます。<br>
+            <span class="text-emerald-600 font-bold">上記に同意して利用を開始します。</span>
+        </span>
+    </label>
+</div>
+<button id="login-button" class="w-full py-3 px-4 rounded-lg shadow-md text-white bg-emerald-600 hover:bg-emerald-700 font-semibold">ログイン 👋 </button>
+<button id="register-button" class="w-full py-3 px-4 border border-emerald-600 rounded-lg shadow-md text-emerald-600 bg-white hover:bg-emerald-50 font-semibold">新規登録はこちら</button>
+</div>
+</template>
+
+<template id="top-menu-template">
+<div class="space-y-8">
+<div class="flex flex-col items-center justify-center mb-6">
+<div class="flex flex-row items-center justify-center gap-4 w-full max-w-md">
+<div class="flex-shrink-0">
+<img src="https://i.gyazo.com/f54df4cfd34805089575f9d7bd268103.png" alt="LIFLO-AI Logo" width="80" class="object-contain">
+</div>
+<div class="text-left">
+<h1 class="text-2xl md:text-3xl font-bold text-emerald-600 leading-tight">
+ライフロ-AI<br>へようこそ！ 🚀
+</h1>
+</div>
+</div>
+<p class="text-xl text-gray-700 mt-3"><span id="welcome-userName" class="font-bold"></span> さん 🌈 </p>
+<p class="text-gray-600 text-sm mt-1">下のメニューから、今やりたいことを選んでくださいね 🌱 </p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<button data-action="goals" class="menu-button p-6 bg-emerald-500 text-white rounded-xl shadow-lg hover:bg-emerald-600 text-left">
+<span class="text-2xl font-bold block mb-1"> ① 目標管理・変更 🎯 </span>
+<span class="text-sm opacity-90">目標の登録や修正、達成/中止を行います。</span>
+</button>
+<button data-action="record" class="menu-button p-6 bg-teal-500 text-white rounded-xl shadow-lg hover:bg-teal-600 text-left">
+<span class="text-2xl font-bold block mb-1"> ② 記録の入力！ ✍️ </span>
+<span class="text-sm opacity-90">「ライフロ」と一緒に目標に対する記録を行ってみましょう！</span>
+</button>
+<button data-action="review" class="menu-button p-6 bg-cyan-500 text-white rounded-xl shadow-lg hover:bg-cyan-600 text-left">
+<span class="text-2xl font-bold block mb-1"> ③ 記録を振り返る 📈 </span>
+<span class="text-sm opacity-90">これまでの記録を確認してみましょう！</span>
+</button>
+<button data-action="theory" class="menu-button p-6 bg-lime-500 text-white rounded-xl shadow-lg hover:bg-lime-600 text-left">
+<span class="text-2xl font-bold block mb-1"> ④ フローとは？ 💡 </span>
+<span class="text-sm opacity-90">「ライフロ-AI」で応用しているフロー理論について紹介しています！</span>
+</button>
+</div>
+<div class="mt-8 pt-4 border-t border-gray-100">
+<button id="logout-button" class="w-full py-3 px-4 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-800 transition font-medium text-center">
+ログアウト
+</button>
+</div>
+</div>
+</template>
+
+<template id="goal-management-template">
+    <div class="space-y-6 pb-20"> 
+        <h2 class="text-3xl font-bold text-emerald-600"> 🎯 目標管理マイページ</h2>
         
         <div class="flex border-b border-gray-200 mb-4">
             <div id="tab-active" class="flex-1 px-4 py-3 text-sm font-bold text-center cursor-pointer text-emerald-600 border-b-4 border-emerald-600 bg-white">
@@ -131,18 +190,13 @@
         <button id="add-goal-button" class="w-full py-3 px-4 rounded-lg shadow-md text-white bg-emerald-600 hover:bg-emerald-700 font-semibold">新しい目標を登録する +</button>
         <button data-action="top" class="w-full py-2 px-4 text-emerald-600 hover:underline mt-4 back-button">トップページに戻る 🏠</button>
     </div>
-    </template>
+</template>
 
-    <template id="goal-card-template">
-        <div class="goal-card p-4 border border-emerald-200 rounded-xl shadow-md bg-white space-y-3 relative">
-            <div class="flex justify-between items-start gap-2">
-                <p class="text-lg font-bold text-gray-800 leading-tight" data-field="goal-title"></p>
-                    <button class="edit-btn p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition shrink-0" title="編集">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                </svg>
-            </button>
-        </div>
+<template id="goal-card-template">
+    <div class="goal-card p-4 border border-emerald-200 rounded-xl shadow-md bg-white space-y-3 relative">
+        <div class="flex justify-between items-start gap-2">
+            <p class="text-lg font-bold text-gray-800 leading-tight" data-field="goal-title"></p>
+            </div>
 
         <div class="flex flex-wrap gap-2 text-xs">
             <span data-field="goal-cat-tag" class="hidden"></span>
@@ -152,66 +206,235 @@
         <div data-field="goal-step" class="hidden text-sm bg-gray-50 p-2 rounded border border-gray-100 text-gray-600">
             <span class="font-bold">👣 最初の一歩:</span> <span class="goal-step-text"></span>
         </div>
-            <div class="flex flex-wrap gap-2 button-container mt-2">
-            </div>
-        </div>
-    </template>
 
-    <template id="record-input-template">
-        <div class="space-y-4 md:space-y-6 h-full flex flex-col">
-            <h2 class="text-2xl md:text-3xl font-bold text-emerald-600"> ② 記録の入力 ✍️ </h2>
-            <div class="bg-white p-3 md:p-4 rounded-lg border border-emerald-200 shadow-sm"><label for="record-goal-select" class="block text-base font-bold text-gray-700 mb-2">記録する目標:</label><select id="record-goal-select" class="block w-full rounded-lg border-gray-300 shadow-sm p-3 border text-lg focus:ring-emerald-500 focus:border-emerald-500"></select></div>
-            <div id="last-regoal-banner" class="hidden mb-4 bg-orange-50 border-l-4 border-orange-400 p-4 rounded-r-lg shadow-sm"><div class="flex items-start"><div class="flex-shrink-0 text-2xl mr-3"> 🚩 </div><div><h3 class="text-xs font-bold text-orange-600 uppercase tracking-wide">前回の目標・課題</h3><p class="text-gray-900 font-bold mt-1 text-base leading-relaxed" id="last-regoal-text"></p></div></div></div>
-            <div id="record-chat-area" class="flex-1 overflow-y-auto p-3 md:p-4 border border-gray-300 rounded-lg bg-gray-50 hide-scrollbar space-y-4 min-h-[300px]"><div class="flex w-full items-start gap-2"><div class="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 shadow mt-1 border border-emerald-200"><img src="https://i.gyazo.com/f54df4cfd34805089575f9d7bd268103.png" alt="AI" class="w-4/5 h-4/5 object-contain"></div><div class="chat-bubble chat-bubble-ai rounded-2xl rounded-tl-none p-4 max-w-[85%] text-base shadow bg-emerald-50 text-gray-800 leading-relaxed">こんにちは！ライフロです！今回の取り組みはいかがでしたか？<br>下のフォームから、CSバランス（挑戦度と能力度）と感想を教えてください！ 😊</div></div></div>
-            <form id="cs-evaluation-form" class="space-y-4 md:space-y-6 p-3 md:p-4 border border-emerald-300 rounded-xl bg-emerald-50">
-                <div class="space-y-2"><label class="block text-base md:text-lg font-semibold text-gray-800">挑戦レベル：目標の難しさ</label><div class="flex justify-between mt-1 gap-1" id="challengeU-radios"></div><div class="flex justify-between items-center text-[10px] md:text-xs text-gray-500 px-1"><span>1:非常に簡単</span><span>4:普通</span><span>7:非常に難しい</span></div></div>
-                <div class="space-y-2"><label class="block text-base md:text-lg font-semibold text-gray-800">能力レベル：目標に対する能力感</label><div class="flex justify-between mt-1 gap-1" id="skillU-radios"></div><div class="flex justify-between items-center text-[10px] md:text-xs text-gray-500 px-1"><span>1:全くない</span><span>4:普通</span><span>7:かなりある</span></div></div>
-                <div class="space-y-2"><label for="reasonU" class="block text-base md:text-lg font-semibold text-gray-800">その理由:</label><textarea id="reasonU" rows="2" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-emerald-500 focus:ring-emerald-500 text-base" placeholder="例: エラーが出たけど解決策が見つかった..."></textarea></div>
-                <button type="submit" id="submit-initial-record" class="w-full py-3 px-4 rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 font-semibold shadow-md text-lg">記録してライフロと相談する 🚀</button>
-            </form>
-            <div id="continue-chat-area" class="hidden space-y-4">
-                <div class="p-4 border-2 border-orange-200 rounded-xl bg-orange-50 flex flex-col items-center gap-3 shadow-sm">
-                    <p class="text-base text-gray-800 font-bold" id="save-recommend-text"> 👇 今後の目標／課題が決まったら保存しましょう！</p>
-                    <button id="finalize-save-button" class="w-full py-3 px-4 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-bold shadow-md transform transition hover:scale-105 text-lg">この内容で記録を保存する ✅</button>
+        <div class="flex flex-wrap gap-2 button-container mt-2">
+            </div>
+    </div>
+</template>
+
+<template id="record-input-template">
+<div class="space-y-6">
+<h2 class="text-3xl font-bold text-emerald-600"> ② 記録の入力 ✍️ </h2>
+<div class="bg-white p-4 rounded-lg border border-emerald-200 shadow-sm">
+<label for="record-goal-select" class="block text-sm font-bold text-gray-700 mb-2">記録する目標:</label>
+<select id="record-goal-select" class="block w-full rounded-lg border-gray-300 shadow-sm p-3 border text-lg focus:ring-emerald-500 focus:border-emerald-500"></select>
+</div>
+<div id="record-chat-area" class="h-[500px] overflow-y-auto p-4 border border-gray-300 rounded-lg bg-gray-50 hide-scrollbar space-y-6">
+<div class="flex w-full items-start gap-2">
+<div class="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 shadow mt-1 border border-emerald-200">
+<img src="https://i.gyazo.com/f54df4cfd34805089575f9d7bd268103.png" alt="AI" class="w-4/5 h-4/5 object-contain">
+</div>
+<div class="chat-bubble chat-bubble-ai rounded-2xl rounded-tl-none p-4 max-w-[85%] text-sm shadow bg-emerald-50 text-gray-800 leading-relaxed">
+こんにちは！ライフロです！今日の取り組みはいかがでしたか？<br>下のフォームから、CSバランス（挑戦度と能力度）と感想を教えてください！ 😊
+</div>
+</div>
+</div>
+<form id="cs-evaluation-form" class="space-y-6 p-4 border border-emerald-300 rounded-xl bg-emerald-50">
+<div class="space-y-2">
+<label class="block text-lg font-semibold text-gray-800">挑戦レベル：目標の難しさ</label>
+<div class="flex justify-between mt-1 gap-1" id="challengeU-radios"></div>
+<div class="flex justify-between items-center text-xs text-gray-500 px-1">
+<span>1:非常に簡単</span><span>4:どちらともいえない</span><span>7:非常に難しい</span>
+</div>
+</div>
+<div class="space-y-2">
+<label class="block text-lg font-semibold text-gray-800">能力レベル：目標に対するあなたの能力感</label>
+<div class="flex justify-between mt-1 gap-1" id="skillU-radios"></div>
+<div class="flex justify-between items-center text-xs text-gray-500 px-1">
+<span>1:全くない</span><span>4:どちらともいえない</span><span>7:かなりある</span>
+</div>
+</div>
+<div class="space-y-2">
+<label for="reasonU" class="block text-lg font-semibold text-gray-800">その理由 (任意):</label>
+<textarea id="reasonU" rows="3" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-emerald-500 focus:ring-emerald-500" placeholder="例: エラーが出たけど解決策が見つかった..."></textarea>
+</div>
+<button type="submit" id="submit-initial-record" class="w-full py-3 px-4 rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 font-semibold shadow-md">
+記録してライフロと相談する 🚀
+</button>
+</form>
+<div id="continue-chat-area" class="hidden space-y-6">
+<div class="p-4 border-2 border-orange-200 rounded-xl bg-orange-50 flex flex-col items-center gap-3 shadow-sm">
+<p class="text-sm text-gray-800 font-bold"> 👇 今後の目標／課題が決まったら保存しましょう！</p>
+<button id="finalize-save-button" class="w-full py-3 px-4 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-bold shadow-md transform transition hover:scale-105">
+この内容で記録を保存する ✅
+</button>
+</div>
+<div class="border-t border-gray-200 pt-4">
+<p class="text-xs text-gray-500 mb-2"> ※ まだ調整が必要な場合はチャットを続けられます</p>
+<div class="flex gap-2">
+<textarea id="chat-input" rows="1" class="flex-1 rounded-lg border-gray-300 shadow-sm p-3 border focus:ring-2 focus:ring-emerald-500" placeholder="返信を入力..."></textarea>
+<button id="send-chat-button" class="w-20 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-md font-bold">送信</button>
+</div>
+</div>
+</div>
+<div id="coaching-options" class="flex flex-col space-y-3 mt-4 hidden"></div>
+<button data-action="top" class="w-full py-2 px-4 text-gray-600 hover:underline transition back-button">トップページに戻る 🏠 </button>
+</div>
+</template>
+
+<template id="review-template">
+<div class="space-y-6">
+<h2 class="text-3xl font-bold text-emerald-600"> 📈 記録の振り返り</h2>
+<select id="review-goal-selector" class="block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-emerald-500 focus:ring-emerald-500"></select>
+<div id="review-chart-card" class="bg-white p-4 rounded-xl shadow-inner border border-emerald-200">
+<h3 class="text-xl font-semibold mb-3 text-center" id="chart-title"></h3>
+<div class="flow-chart-container">
+<canvas id="flowChart"></canvas>
+</div>
+<div class="mt-4 flex flex-wrap justify-center gap-4 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-100">
+<div class="flex items-center"><span class="w-8 h-0.5 bg-emerald-500 mr-2"></span>あなた(実線)</div>
+<div class="flex items-center"><span class="w-3 h-3 rounded-full bg-emerald-600 mr-2 border border-white shadow-sm"></span>最新のあなた(丸)</div>
+<div class="flex items-center"><span class="w-8 h-0.5 border-t-2 border-dashed border-orange-500 mr-2"></span>AI評価(点線)</div>
+<div class="flex items-center"><span class="text-orange-600 text-lg leading-none mr-2">★</span>最新AI(星)</div>
+</div>
+</div>
+<div class="space-y-4">
+<h3 class="text-xl font-bold text-gray-700"> 📝 記録の詳細</h3>
+<div id="record-details-container" class="space-y-4 records-scroll-area p-2 border border-gray-200 rounded-lg bg-gray-50"></div>
+</div>
+<button data-action="top" class="w-full py-2 px-4 text-emerald-600 hover:underline transition back-button">トップページに戻る 🏠 </button>
+</div>
+</template>
+
+<template id="theory-template">
+<div class="space-y-8 pb-10">
+<div class="text-center">
+<div class="flex flex-row items-center justify-center gap-3 w-full max-w-md mx-auto mt-4 mb-2">
+<div class="flex-shrink-0">
+<img src="https://i.gyazo.com/996e8bec662c3aa805c4ccede698b5ba.png" alt="LIFLO" class="w-24 object-contain">
+</div>
+<div class="text-left">
+<h2 class="text-3xl font-bold text-emerald-600 text-center">フローとは？</h2>
+<p class="text-base text-gray-500 mt-1 text-center">ライフロ-AIのベースとなっている<br>「フロー理論」についてご紹介します。</p>
+</div>
+</div>
+</div>
+<div class="bg-white rounded-xl shadow-md border border-emerald-100 p-6">
+<h3 class="text-xl font-bold text-emerald-800 mb-3 flex items-center">
+<span class="text-2xl mr-2"> ✨ </span> 1. フロー状態とは？
+</h3>
+<p class="text-gray-700 leading-relaxed mb-4 text-sm">
+時間を忘れて夢中になったり、何かに没頭して最高に楽しいと感じる状態のことです。<br>
+心理学ではこれを<span class="font-bold text-emerald-600">「フロー（Flow）」</span>と呼びます。
+</p>
+</div>
+<div class="bg-white rounded-xl shadow-md border border-emerald-100 p-6">
+<h3 class="text-xl font-bold text-emerald-800 mb-4 flex items-center">
+<span class="text-2xl mr-2"> 📊 </span> 2. 心の状態の4つの部屋
+</h3>
+<p class="text-gray-700 mb-4 text-sm">
+フロー理論では、課題の<span class="font-bold text-orange-500">「難しさ（挑戦レベル）」</span>と、あなたの<span class="font-bold text-blue-500">「実力（能力レベル）」</span>のバランスによって、心の状態が決まります。
+</p>
+<div class="mx-auto max-w-xs">
+<div class="grid grid-cols-2 gap-3 text-center aspect-square relative border-2 border-gray-200 rounded-lg bg-gray-50 p-1 ml-6 mb-6">
+<div class="absolute -left-12 top-1/2 -translate-y-1/2 -rotate-90 text-xs font-bold text-gray-600 whitespace-nowrap">挑戦レベル</div>
+<div class="absolute -left-4 top-2 text-xs text-gray-400">高</div>
+<div class="absolute -left-4 bottom-2 text-xs text-gray-400">低</div>
+<div class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs font-bold text-gray-600 whitespace-nowrap">能力レベル</div>
+<div class="absolute -bottom-5 left-2 text-xs text-gray-400">低</div>
+<div class="absolute -bottom-5 right-2 text-xs text-gray-400">高</div>
+<div class="bg-red-50 border border-red-200 p-2 rounded flex flex-col justify-center items-center h-full">
+<div class="text-red-500 font-bold mb-1 text-lg"> 😰 不安</div>
+<div class="text-[10px] text-gray-600">難しすぎる…</div>
+</div>
+<div class="bg-green-100 border-2 border-green-400 p-2 rounded flex flex-col justify-center items-center h-full shadow-md relative z-10">
+<div class="text-green-700 font-bold mb-1 text-lg"> ✨ フロー</div>
+<div class="text-[10px] text-gray-800 font-bold">最高に楽しい！</div>
+</div>
+<div class="bg-gray-200 border border-gray-300 p-2 rounded flex flex-col justify-center items-center h-full">
+<div class="text-gray-500 font-bold mb-1 text-lg"> 😑 無関心</div>
+<div class="text-[10px] text-gray-600">やる気が出ない…</div>
+</div>
+<div class="bg-yellow-50 border border-yellow-200 p-2 rounded flex flex-col justify-center items-center h-full">
+<div class="text-yellow-600 font-bold mb-1 text-lg"> 🥱 退屈</div>
+<div class="text-[10px] text-gray-600">簡単すぎる…</div>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl shadow-md border border-emerald-200 p-6">
+<h3 class="text-xl font-bold text-emerald-800 mb-3 flex items-center">
+<div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 shadow border border-emerald-200 mr-2 overflow-hidden">
+<img src="https://i.gyazo.com/611879904819fa76fa1d05bc9f6ce711.png" alt="LIFLO" class="w-full h-full object-contain">
+</div>
+3. ライフロAIの研究背景
+</h3>
+<div class="text-gray-700 text-sm space-y-4 leading-relaxed">
+<p>
+実は、このアプリは<span class="font-bold text-emerald-700">「作業療法（リハビリテーション）」の研究</span>から生まれました。
+</p>
+<p>
+研究によると、<span class="font-bold bg-white px-1 rounded">「挑戦レベルと能力レベルのバランスを調整すること」</span>が、人々の生活の質（QOL）や健康感を高めることが分かっています。
+</p>
+<p>
+今回は、この調整方法を学習したAI（＝ライフロ）が、みなさんの日々の目標達成をサポートします。
+</p>
+<div class="bg-white p-4 rounded-lg border border-emerald-100 my-2">
+<p class="font-bold text-emerald-700 mb-2 text-center text-xs">バランス調整の仕組み</p>
+<div class="flex justify-around text-center text-xs gap-1">
+<div class="flex-1 bg-blue-50 p-2 rounded">
+<div class="font-bold text-blue-600">あなた</div>
+<div class="text-[9px] text-gray-500">今の能力・状態</div>
+</div>
+<div class="flex items-center text-gray-400">×</div>
+<div class="flex-1 bg-orange-50 p-2 rounded">
+<div class="font-bold text-orange-600">やり方</div>
+<div class="text-[9px] text-gray-500">難易度・方法</div>
+</div>
+<div class="flex items-center text-gray-400">×</div>
+<div class="flex-1 bg-gray-50 p-2 rounded">
+<div class="font-bold text-gray-600">環境</div>
+<div class="text-[9px] text-gray-500">取り巻く状況</div>
+</div>
+</div>
+<p class="mt-3 text-xs text-gray-600">
+これらを総合的に見て、あなたにとって<span class="font-bold text-orange-500">「最適なバランス」</span>になるような調整課題を提案します。
+</p>
+</div>
+<p class="font-bold text-emerald-700 text-center border-t border-emerald-100 pt-3">
+あなたの日々の生活が、少しでも挑戦と能力のバランスが整った状態となるよう、サポートしていきます。
+</p>
+</div>
+<div class="flex justify-center mt-6">
+<button data-action="top" class="bg-white border border-emerald-300 text-emerald-700 font-bold py-2 px-6 rounded-full shadow-sm hover:bg-emerald-50 transition">
+トップページに戻る 🏠
+</button>
+</div>
+</div>
+<div class="text-right text-[10px] text-gray-400 mt-4 space-y-1">
+<p>参考文献：Csikszentmihalyi (1990) Flow: The Psychology of Optimal Experience 他</p>
+<p>開発ベース：吉田一平 (2015-2020)挑戦水準・能力水準バランスを調整した作業療法がQOLに与える効果—フローモデルを基にした研究—</p>
+</div>
+</div>
+</template>
+
+<template id="chat-message-template">
+<div class="flex w-full items-start gap-2 mb-4" data-role="message-row">
+<div class="bot-icon hidden w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 shadow mt-1 border border-emerald-200">
+<img src="https://i.gyazo.com/f54df4cfd34805089575f9d7bd268103.png" alt="AI" class="w-4/5 h-4/5 object-contain">
+</div>
+<div class="message-bubble chat-bubble rounded-2xl p-4 max-w-[85%] text-sm shadow leading-relaxed"></div>
+</div>
+</template>
+<template id="goal-consult-template">
+    <div class="fixed inset-0 z-50 flex items-center justify-center modal-overlay" id="consult-backdrop">
+        <div class="bg-white rounded-xl shadow-2xl w-11/12 max-w-lg h-[80vh] flex flex-col">
+            <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-xl font-bold text-emerald-600">目標相談 🤖</h3>
+                <button id="consult-close" class="text-gray-500 hover:text-gray-800 p-2 rounded-full hover:bg-gray-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <div id="consult-chat-area" class="flex-grow overflow-y-auto p-4 space-y-4 bg-gray-50 hide-scrollbar">
                 </div>
-                <div id="additional-chat-container" class="border-t border-gray-200 pt-4"><p class="text-sm text-gray-500 mb-2">※まだ調整が必要な場合はチャットを続けられます</p><div class="flex gap-2"><textarea id="chat-input" rows="1" class="flex-1 rounded-lg border-gray-300 shadow-sm p-3 border focus:ring-2 focus:ring-emerald-500 text-base" placeholder="返信を入力..."></textarea><button id="send-chat-button" class="w-20 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-md font-bold">送信</button></div></div>
+            <div class="p-4 border-t border-gray-200 flex gap-2">
+                <input type="text" id="consult-input" class="flex-1 rounded-lg border-gray-300 shadow-sm p-3 border focus:ring-2 focus:ring-emerald-500" placeholder="返信を入力...">
+                <button id="consult-send" class="w-20 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-md font-bold">送信</button>
             </div>
-            <div id="coaching-options" class="flex flex-col space-y-3 mt-4 hidden"></div>
-            <button data-action="top" class="w-full py-2 px-4 text-gray-600 hover:underline transition back-button text-center text-lg">トップページに戻る 🏠 </button>
         </div>
-    </template>
+    </div>
+</template>
 
-    <template id="review-template">
-        <div class="space-y-4 md:space-y-6 h-full flex flex-col">
-            <div class="flex justify-between items-center"><h2 class="text-xl md:text-3xl font-bold text-emerald-600"> 📈 記録の振り返り</h2><button data-action="top" class="back-button text-sm md:text-base text-emerald-600 hover:text-emerald-800 font-bold px-2 py-1 border border-emerald-200 rounded-lg hover:bg-emerald-50 transition">🏠 トップへ</button></div>
-            <select id="review-goal-selector" class="block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-emerald-500 focus:ring-emerald-500 text-lg"></select>
-            <div class="bg-white p-2 md:p-4 rounded-xl shadow-inner border border-emerald-200" id="review-chart-card">
-                <h3 class="text-lg md:text-xl font-semibold mb-3 text-center" id="chart-title"></h3>
-                <div class="flow-chart-container"><canvas id="flowChart"></canvas></div>
-                <div class="mt-4 flex flex-wrap justify-center gap-2 text-xs md:text-sm text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-100"><div class="flex items-center"><span class="w-8 h-0.5 bg-emerald-500 mr-1"></span>あなた(実線)</div><div class="flex items-center"><span class="w-3 h-3 rounded-full bg-emerald-600 mr-1 border border-white shadow-sm"></span>最新のあなた</div><div class="flex items-center"><span class="w-8 h-0.5 border-t-2 border-dashed border-orange-500 mr-1"></span>ライフロ(点線)</div><div class="flex items-center"><span class="text-orange-600 text-lg leading-none mr-1">★</span>最新ライフロ</div></div>
-            </div>
-            <div class="space-y-2 flex-1 overflow-hidden flex flex-col"><h3 class="text-lg font-bold text-gray-700"> 📝 記録の詳細</h3><div id="record-details-container" class="space-y-4 p-2 border border-gray-200 rounded-lg bg-gray-50 records-scroll-area"></div></div>
-            <button data-action="top" class="w-full py-2 px-4 text-emerald-600 hover:underline transition back-button text-center mt-auto text-lg">トップページに戻る 🏠 </button>
-        </div>
-    </template>
-
-    <template id="theory-template">
-        <div class="space-y-8 pb-10">
-            <div class="text-center"><div class="flex flex-row items-center justify-center gap-4 w-full max-w-md mx-auto mt-4 mb-4"><div class="flex-shrink-0"><img src="https://i.gyazo.com/7c12c7bd4a5bdc5ebe5780a7a7fce894.png" alt="LIFLO" class="w-32 object-contain"></div><div class="text-left"><h2 class="text-2xl md:text-3xl font-bold text-emerald-600">フローとは？</h2><p class="text-sm text-gray-500 mt-1">ライフロ-AIのベースと<br>なっている「フロー理論」<br>についてご紹介します 🌱 </p></div></div></div>
-            <div class="bg-white rounded-xl shadow-md border border-emerald-100 p-6"><h3 class="text-xl font-bold text-emerald-800 mb-3 flex items-center"><span class="text-2xl mr-2"> ✨ </span> 1. フロー状態とは？</h3><p class="text-gray-700 leading-relaxed mb-4 text-sm">時間を忘れて夢中になったり、何かに没頭して最高に楽しい！と感じる状態のことです。心理学ではこれを<span class="font-bold text-emerald-600">「フロー（Flow）」</span>と呼びます。</p></div>
-            <div class="bg-white rounded-xl shadow-md border border-emerald-100 p-6"><h3 class="text-xl font-bold text-emerald-800 mb-4 flex items-center"><span class="text-2xl mr-2"> 📊 </span> 2. 心の状態の4つの部屋</h3><p class="text-gray-700 mb-4 text-sm">フロー理論では、課題の<span class="font-bold text-orange-500">「難しさ」</span>と、あなたの<span class="font-bold text-blue-500">「能力」</span>のバランスによって、心の状態が決まります。</p><div class="mx-auto max-w-xs w-5/5"><div class="grid grid-cols-2 gap-2 text-center aspect-square relative border-2 border-gray-200 rounded-lg bg-gray-50 p-1 ml-6 mb-6"><div class="absolute -left-12 top-1/2 -translate-y-1/2 -rotate-90 text-xs font-bold text-gray-600 whitespace-nowrap">挑戦レベル</div><div class="absolute -left-4 top-2 text-xs text-gray-400">高</div><div class="absolute -left-4 bottom-2 text-xs text-gray-400">低</div><div class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs font-bold text-gray-600 whitespace-nowrap">能力レベル</div><div class="absolute -bottom-5 left-2 text-xs text-gray-400">低</div><div class="absolute -bottom-5 right-2 text-xs text-gray-400">高</div><div class="bg-red-50 border border-red-200 p-2 rounded flex flex-col justify-center items-center h-full"><div class="text-red-500 font-bold mb-1 text-lg"> 😰 不安</div><div class="text-[10px] text-gray-600">難しすぎる…</div></div><div class="bg-green-100 border-2 border-green-400 p-2 rounded flex flex-col justify-center items-center h-full shadow-md relative z-10"><div class="text-green-700 font-bold mb-1 text-lg"> ✨ フロー</div><div class="text-[10px] text-gray-800 font-bold">最高に楽しい！</div></div><div class="bg-gray-200 border border-gray-300 p-2 rounded flex flex-col justify-center items-center h-full"><div class="text-gray-500 font-bold mb-1 text-lg"> 😑 無関心</div><div class="text-[10px] text-gray-600">やる気が出ない…</div></div><div class="bg-yellow-50 border border-yellow-200 p-2 rounded flex flex-col justify-center items-center h-full"><div class="text-yellow-600 font-bold mb-1 text-lg"> 🥱 退屈</div><div class="text-[10px] text-gray-600">簡単すぎる…</div></div></div></div></div>
-            <div class="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl shadow-md border border-emerald-200 p-4 md:p-6"><h3 class="text-lg md:text-xl font-bold text-emerald-800 mb-3 flex items-center"><div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 shadow border border-emerald-200 mr-2 overflow-hidden"><img src="https://i.gyazo.com/611879904819fa76fa1d05bc9f6ce711.png" alt="LIFLO" class="w-full h-full object-contain"></div>3. ライフロAIの研究背景</h3><div class="text-gray-700 text-xs md:text-sm space-y-4 leading-relaxed"><p>実は、このアプリは<span class="font-bold text-emerald-700">「作業療法（リハビリテーション）」分野の研究</span>から生まれました。</p><p>研究によると、<span class="font-bold bg-white px-1 rounded">「挑戦レベルと能力レベルのバランスを調整すること」</span>が、人々の生活の質（QOL）や健康感を高めることが分かっています。</p><p>今回は、この調整方法を学習したAI（＝ライフロ）が、みなさんの日々の目標達成をサポートします。</p><div class="bg-white p-3 md:p-4 rounded-lg border border-emerald-100 my-2"><p class="font-bold text-emerald-700 mb-2 text-center text-xs">バランス調整の仕組み</p><div class="flex justify-around text-center text-xs gap-1"><div class="flex-1 bg-blue-50 p-2 rounded"><div class="font-bold text-blue-600">あなた</div><div class="text-[9px] text-gray-500">今の能力・状態</div></div><div class="flex items-center text-gray-400">×</div><div class="flex-1 bg-orange-50 p-2 rounded"><div class="font-bold text-orange-600">やり方</div><div class="text-[9px] text-gray-500">難易度・方法</div></div><div class="flex items-center text-gray-400">×</div><div class="flex-1 bg-gray-50 p-2 rounded"><div class="font-bold text-gray-600">環境</div><div class="text-[9px] text-gray-500">取り巻く状況</div></div></div></div><p class="font-bold text-emerald-700 text-center border-t border-emerald-100 pt-3 text-sm md:text-base">あなたの日々の生活が、少しでも挑戦と能力のバランスが整った状態となるよう、サポートしていきます！</p></div><div class="flex justify-center mt-6"><button data-action="top" class="back-button bg-white border border-emerald-300 text-emerald-700 font-bold py-2 px-6 rounded-full shadow-sm hover:bg-emerald-50 transition text-sm md:text-base">トップページに戻る 🏠 </button></div></div>
-            <div class="text-right text-[9px] md:text-[10px] text-gray-400 mt-4 space-y-1"><p>参考文献：Csikszentmihalyi (1990) Flow: The Psychology of Optimal Experience 他</p><p>開発ベース：吉田一平 (2015-2020) 挑戦水準・能力水準バランスを調整した作業療法がQOLに与える効果—フローモデルを基にした研究—</p></div>
-        </div>
-    </template>
-
-    <template id="chat-message-template">
-        <div class="flex w-full items-start gap-2 mb-4" data-role="message-row">
-            <div class="bot-icon hidden w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 shadow mt-1 border border-emerald-200"><img src="https://i.gyazo.com/f54df4cfd34805089575f9d7bd268103.png" alt="AI" class="w-4/5 h-4/5 object-contain"></div>
-            <div class="message-bubble chat-bubble rounded-2xl p-3 md:p-4 max-w-[90%] md:max-w-[85%] text-sm md:text-base shadow leading-relaxed"></div>
-        </div>
-    </template>
-
-    <script src="js/app.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
