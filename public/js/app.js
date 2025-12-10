@@ -123,8 +123,7 @@ function extractLLMData(txt) {
 const FORBIDDEN_WORDS = [
     "死", "ころす", "殺す", "自殺", "自傷", "暴れる", 
     "暴力", "破壊", "ドラッグ", "麻薬", 
-    "しにたい",  "だめだ", "もういや", 
-    "ふかえり", // 可能性のある不適切/不健康なキーワード
+    "しにたい",   // 可能性のある不適切/不健康なキーワード
 ];
 
 function containsForbiddenWords(text) {
