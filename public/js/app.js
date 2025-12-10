@@ -1,6 +1,6 @@
 /**
  * LIFLO-AI Application Script
- * Final Stable Version: Goals List Fix, Crisis Management, Full UI Consolidation
+ * FINAL FINAL STABLE VERSION: Global Error Handling and Goals List Fix
  */
 
 const LOGO_DATA = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PC9zdmc+";
@@ -66,7 +66,6 @@ function showModal({ title, message = '', showInput = false, inputType = 'defaul
                 const statusSelectContainer = document.getElementById('modal-goal-form').querySelector('div:last-child');
                 
                 if (isGoalEdit && currentGoal.goal) {
-                    // 目標編集フォームの初期値設定
                     setTimeout(() => {
                         document.getElementById('goal-input-main').value = getGoalMainText(currentGoal.goal);
                         const catMatch = currentGoal.goal.match(/Cat:(.*?)(?:,|,\s|\)|$)/);
@@ -75,10 +74,8 @@ function showModal({ title, message = '', showInput = false, inputType = 'defaul
                         if (stepMatch) document.getElementById('goal-input-step').value = stepMatch[1].trim();
                         document.getElementById('goal-input-status').value = currentGoal.status || ''; 
                     }, 50);
-                    // 編集時はステータス選択セレクトを表示
                     if (statusSelectContainer) statusSelectContainer.style.display = 'block';
                 } else if (!isGoalEdit) {
-                    // 目標登録時はステータス変更セレクトを非表示
                     if (statusSelectContainer) statusSelectContainer.style.display = 'none';
                 }
             }
@@ -404,7 +401,7 @@ async function startGoalConsultation(targetInputs) {
 // --- Render & Init Functions ---
 
 function render() {
-    // ★エラー回避のため、try-catchを追加
+    // ★グローバルエラーハンドリングの強化
     try {
         appDiv.innerHTML = '';
         let id = 'login-template';
@@ -414,6 +411,8 @@ function render() {
         else if(State.view==='review') id='review-template';
         else if(State.view==='theory') id='theory-template';
         appDiv.appendChild(document.getElementById(id).content.cloneNode(true));
+        
+        // 各ビューの初期化
         if(State.view==='login') initLogin();
         else if(State.view==='top') initTop();
         else if(State.view==='goals') initGoals();
@@ -421,8 +420,16 @@ function render() {
         else if(State.view==='review') initReview();
         else if(State.view==='theory') initTheoryPage();
     } catch (error) {
-        console.error("Render Error:", error);
-        appDiv.innerHTML = '<div class="text-center p-10 text-red-600">致命的なエラーが発生しました。アプリをリロードしてください。</div>';
+        console.error("Render Critical Error:", error);
+        // 描画失敗時にログイン画面に戻すか、エラーメッセージを表示
+        if (State.view !== 'login') {
+             // ログイン画面の表示を試みる
+             State.view = 'login';
+             render(); // 再帰的にrenderを呼び出す（無限ループ防止のため、この再帰は1回のみと想定）
+        } else {
+             // ログイン画面でも失敗した場合
+             appDiv.innerHTML = '<div class="text-center p-10 text-red-600">初期化中に予期せぬエラーが発生しました。アプリをリロードしてください。</div>';
+        }
     }
 }
 
@@ -616,7 +623,7 @@ function initGoals() {
         };
         tabActive.onclick = () => switchTab('active'); 
         tabHistory.onclick = () => switchTab('history');
-        // switchTab('active'); // ren()を二重実行しないよう削除
+        switchTab('active');
     }
 
     const ren = () => {
@@ -764,7 +771,7 @@ function initGoals() {
                 }
                 lst.appendChild(t);
             } catch (e) {
-                // 致命的なエラーの可能性を報告しつつ、処理は継続
+                // 個別のカード生成エラーを報告しつつ、処理は継続
                 console.error(`Error rendering goal card for #${g.goalNo}:`, e);
             }
         });
