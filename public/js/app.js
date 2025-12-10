@@ -117,7 +117,7 @@ function extractLLMData(txt) {
     return { text: c, data: null };
 }
 
-// --- Crisis Management Logic (Global) ---
+// --- Crisis Management Logic ---
 function checkCrisisKeywords(text, uiCallback) {
     if (!text) return false;
     const dangerKeywords = [
@@ -548,7 +548,7 @@ function initTop() {
             const target = e.currentTarget;
             const action = target.dataset.action;
             if(action === 'record' && State.activeGoals.filter(g => !g.status).length === 0) { 
-                customAlert('進行中の目標がありません。目標を登録・再開してください。'); 
+                customAlert('進行中の目標がありません。目標管理画面で新しい目標を登録するか、履歴から目標を「再開」してください。'); 
                 navigateTo('goals'); 
             } else { 
                 navigateTo(action); 
@@ -664,40 +664,13 @@ function initGoals() {
                 if(g.status === '中止') stepEl.classList.add('opacity-50');
             }
 
-            // 編集ボタンのイベント設定
-            const editBtn = t.querySelector('.edit-btn');
-            if(editBtn) {
-                editBtn.onclick = async (e) => {
-                    e.preventDefault(); e.stopPropagation();
-                    const modalPromise = showModal({ title: '目標の編集', showInput: true, inputType: 'goal-form', showCancel: true });
-                    setTimeout(() => {
-                        const mMain = document.getElementById('goal-input-main'); const mCat = document.getElementById('goal-input-category'); const mStep = document.getElementById('goal-input-step');
-                        if(mMain) mMain.value = titleOnly; if(mCat) mCat.value = category; if(mStep) mStep.value = step;
-                    }, 50);
-                    const result = await modalPromise;
-                    if(!result) return;
-                    
-                    const checkText = `${result.goal} ${result.step}`;
-                    if(checkCrisisKeywords(checkText)) return;
-
-                    let currentStatusOffset = 0;
-                    if(g.status === '達成') currentStatusOffset = 10000;
-                    if(g.status === '中止') currentStatusOffset = 20000;
-                    
-                    const saveID = currentStatusOffset + g.goalNo;
-                    const newGoalString = `${result.goal} (Cat:${result.category}, 1st:${result.step})`;
-                    
-                    await fetchGAS('POST', { action: 'saveData', date: getFormattedDate(), userID: State.userID, userName: State.userName, goalNo: saveID, goal: newGoalString });
-                    customAlert('更新しました！✨'); await fetchUserData(); ren();
-                };
-            }
-
-            // --- ボタン生成エリア (class="button-container") ---
+            // --- ボタン生成エリア ---
             const btnContainer = t.querySelector('.button-container');
             if(btnContainer) {
                 btnContainer.innerHTML = '';
                 
                 if (currentTab === 'active') {
+                    // 進行中タブのボタン
                     const recBtn = createBtn("今日の記録 ✍️", "bg-teal-100 text-teal-700 hover:bg-teal-200", () => navigateTo('record', {goal:g}), true);
                     const achBtn = createBtn("達成 🎉", "bg-yellow-100 text-yellow-700 hover:bg-yellow-200", () => handleChangeStatus(g, '達成', 10000));
                     const stpBtn = createBtn("中止 ⏹️", "bg-gray-100 text-gray-700 hover:bg-gray-200", () => handleChangeStatus(g, '中止', 20000));
@@ -705,7 +678,7 @@ function initGoals() {
                     btnContainer.append(recBtn, achBtn, stpBtn, delBtn);
                 
                 } else if (currentTab === 'history') {
-                    // 履歴タブのボタン（再開・削除）
+                    // 履歴タブのボタン
                     const restoreBtn = createBtn("再開する 🔄", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", () => handleChangeStatus(g, '再開', 0), true);
                     const delBtn = createBtn("完全に削除 🗑️", "bg-red-100 text-red-700 hover:bg-red-200", () => handleChangeStatus(g, '削除', 30000));
                     btnContainer.append(restoreBtn, delBtn);
@@ -734,8 +707,19 @@ function initGoals() {
 
         if(checkCrisisKeywords(reason)) return;
 
+        // 再開(offsetID=0)の場合は、元のID（offsetなし）に戻す
+        // 削除/中止/達成はオフセットを足す
         const saveID = offsetID + goalObj.goalNo;
-        await fetchGAS('POST', { action: 'saveData', date: getFormattedDate(), userID: State.userID, userName: State.userName, goalNo: saveID, goal: goalObj.goal, reasonU: reason });
+        
+        await fetchGAS('POST', { 
+            action: 'saveData', 
+            date: getFormattedDate(), 
+            userID: State.userID, 
+            userName: State.userName, 
+            goalNo: saveID, 
+            goal: goalObj.goal, 
+            reasonU: reason 
+        });
         
         let doneMsg = '更新しました ✨';
         if (statusLabel === '削除') doneMsg = '削除しました 🗑️';
@@ -790,7 +774,6 @@ function initRecord() {
     const activeGoalsOnly = State.activeGoals.filter(g => !g.status); 
 
     if(activeGoalsOnly.length === 0){
-        // 進行中の目標がない場合
         customAlert('記録できる進行中の目標がありません。目標管理画面で新しい目標を登録するか、履歴から目標を「再開」してください。');
         navigateTo('goals');
         return;
@@ -802,11 +785,9 @@ function initRecord() {
     sel.innerHTML = activeGoalsOnly.map(g => `<option value="${g.goalNo}" ${State.selectedGoal?.goalNo==g.goalNo?'selected':''}>#${g.goalNo} ${getGoalMainText(g.goal).substr(0,20)}...</option>`).join('');
     
     sel.onchange = (e) => {
-        // 選択された目標が進行中リストに含まれるか確認
         const g = activeGoalsOnly.find(item => item.goalNo == e.target.value);
         if (g) { State.currentChat = []; State.recordData = null; State.pendingData = null; navigateTo('record', {goal: g}); }
     };
-    // ...（中略：以下、以前のコードと同一）...
     
     const uidStr = State.userID.toString();
     const isControl = uidStr.startsWith('26') && uidStr.length === 6;
@@ -939,7 +920,7 @@ function initReview() {
     const box = document.getElementById('record-details-container');
     const tit = document.getElementById('chart-title');
     
-    // 【修正点】振り返り対象の目標: 削除フラグがない目標すべて（進行中、達成、中止）
+    // 振り返り対象の目標: 削除フラグがない目標すべて（進行中、達成、中止）
     const reviewableGoals = State.activeGoals.filter(g => 
         g.status !== '削除' && State.userRecords.some(r => r.goalNo==g.goalNo && r.challengeU)
     );
@@ -963,7 +944,7 @@ function initReview() {
     }
 
     const load = (gn) => {
-        // 【修正点】過去の記録データも、目標ID（gn）が「削除」ステータスの目標のものであればフィルタリング
+        // 過去の記録データは、その目標IDに紐づくデータ全て
         const recs = State.userRecords.filter(r => 
             r.goalNo == gn && r.challengeU
         ).sort((a,b)=>new Date(a.date)-new Date(b.date));
