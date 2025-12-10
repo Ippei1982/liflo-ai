@@ -1,6 +1,6 @@
 /**
  * LIFLO-AI Application Script
- * Final Fix 4: Restore Edit Button for Active Goals in Goals Management
+ * Final Stable Version: Goals List Fix, Crisis Management, Full UI Consolidation
  */
 
 const LOGO_DATA = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PC9zdmc+";
@@ -63,7 +63,7 @@ function showModal({ title, message = '', showInput = false, inputType = 'defaul
             else if(inputType==='goal-form') {
                 gForm.classList.remove('hidden');
                 
-                const statusSelect = document.getElementById('modal-goal-form').querySelector('div:last-child');
+                const statusSelectContainer = document.getElementById('modal-goal-form').querySelector('div:last-child');
                 
                 if (isGoalEdit && currentGoal.goal) {
                     // 目標編集フォームの初期値設定
@@ -76,10 +76,10 @@ function showModal({ title, message = '', showInput = false, inputType = 'defaul
                         document.getElementById('goal-input-status').value = currentGoal.status || ''; 
                     }, 50);
                     // 編集時はステータス選択セレクトを表示
-                    if (statusSelect) statusSelect.style.display = 'block';
+                    if (statusSelectContainer) statusSelectContainer.style.display = 'block';
                 } else if (!isGoalEdit) {
                     // 目標登録時はステータス変更セレクトを非表示
-                    if (statusSelect) statusSelect.style.display = 'none';
+                    if (statusSelectContainer) statusSelectContainer.style.display = 'none';
                 }
             }
         }
@@ -637,23 +637,33 @@ function initGoals() {
             const stepMatch = fullTitle.match(/1st:(.*?)(?:,|,\s|\)|$)/);
             const category = catMatch ? catMatch[1].trim() : '';
             const step = stepMatch ? stepMatch[1].trim() : '';
+            
+            // ★目標カード内の要素を安全に取得
             const titleEl = t.querySelector('[data-field="goal-title"]');
             const cardContainer = t.querySelector('.goal-card');
+            const catTag = t.querySelector('[data-field="goal-cat-tag"]');
+            const dateTag = t.querySelector('[data-field="goal-date-tag"]');
+            const stepEl = t.querySelector('[data-field="goal-step"]');
+            const stepText = t.querySelector('.goal-step-text');
+            const btnContainer = t.querySelector('.button-container');
+
 
             if(currentTab === 'history') {
                 if (g.status === '達成') {
                     cardContainer.classList.add('bg-yellow-50', 'border-yellow-200');
-                    titleEl.innerHTML = `<span class="text-yellow-600 mr-1">🏆 達成</span> ${titleOnly}`;
+                    if (titleEl) titleEl.innerHTML = `<span class="text-yellow-600 mr-1">🏆 達成</span> ${titleOnly}`;
                 } else if (g.status === '中止') {
                     cardContainer.classList.add('bg-gray-100', 'border-gray-200');
-                    titleEl.classList.add('text-gray-500');
-                    titleEl.innerHTML = `<span class="text-gray-400 mr-1">⏹️ 中止</span> <span class="line-through">${titleOnly}</span>`;
+                    if (titleEl) {
+                        titleEl.classList.add('text-gray-500');
+                        titleEl.innerHTML = `<span class="text-gray-400 mr-1">⏹️ 中止</span> <span class="line-through">${titleOnly}</span>`;
+                    }
                 }
             } else {
-                titleEl.textContent = `[#${g.goalNo}] ${titleOnly}`;
+                if (titleEl) titleEl.textContent = `[#${g.goalNo}] ${titleOnly}`;
             }
 
-            const catTag = t.querySelector('[data-field="goal-cat-tag"]');
+            // カテゴリタグ
             if (category && catTag) {
                 let colorClass = 'bg-purple-50 text-purple-700 border-purple-200'; let icon = '📂';
                 if (category.includes('仕事') || category.includes('キャリア')) { colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-200'; icon = '💼'; }
@@ -666,7 +676,7 @@ function initGoals() {
                 if(g.status === '中止') catTag.className = `inline-flex items-center text-xs font-bold px-2 py-1 rounded border bg-gray-200 text-gray-500 border-gray-300`;
             }
 
-            const dateTag = t.querySelector('[data-field="goal-date-tag"]');
+            // 日付表示
             if (g.startDate && dateTag) {
                 const startStr = formatDateForDisplay(g.startDate).split(' ')[0];
                 if (currentTab === 'history') { 
@@ -678,8 +688,7 @@ function initGoals() {
                 dateTag.classList.remove('hidden');
             }
 
-            const stepEl = t.querySelector('[data-field="goal-step"]');
-            const stepText = t.querySelector('.goal-step-text');
+            // 最初の一歩表示
             if (step && stepEl && stepText) { 
                 stepText.textContent = step; 
                 stepEl.classList.remove('hidden');
@@ -687,13 +696,11 @@ function initGoals() {
             }
 
             // --- ボタン生成エリア ---
-            const btnContainer = t.querySelector('.button-container');
             if(btnContainer) {
                 btnContainer.innerHTML = '';
                 
                 // 編集ボタンの共通処理
                 const handleEdit = async () => {
-                    // 目標編集モーダルを開く
                     const modalPromise = showModal({ title: '目標の編集', showInput: true, inputType: 'goal-form', showCancel: true, isGoalEdit: true, currentGoal: g });
                     const result = await modalPromise;
                     if(!result) return;
@@ -701,11 +708,9 @@ function initGoals() {
                     const checkText = `${result.goal} ${result.step}`;
                     if(checkCrisisKeywords(checkText)) return;
 
-                    // ステータスはモーダルからの入力結果(result.status)を使用
                     let currentStatusOffset = 0;
                     if(result.status === '達成') currentStatusOffset = 10000;
                     else if(result.status === '中止') currentStatusOffset = 20000;
-                    // statusが空文字列（進行中）の場合は 0
 
                     const saveID = currentStatusOffset + g.goalNo;
                     const newGoalString = `${result.goal} (Cat:${result.category}, 1st:${result.step})`;
@@ -735,8 +740,8 @@ function initGoals() {
                     const recBtn = createBtn("今日の記録 ✍️", "bg-teal-100 text-teal-700 hover:bg-teal-200", () => navigateTo('record', {goal:g}), true);
                     const achBtn = createBtn("達成 🎉", "bg-yellow-100 text-yellow-700 hover:bg-yellow-200", () => handleChangeStatus(g, '達成', 10000));
                     const stpBtn = createBtn("中止 ⏹️", "bg-gray-100 text-gray-700 hover:bg-gray-200", () => handleChangeStatus(g, '中止', 20000));
-                    const delBtn = createBtn("🗑️", "bg-red-100 text-red-700 hover:bg-red-200", () => handleChangeStatus(g, '削除', 30000));
-                    const editBtn = createIconBtn("✏️", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", handleEdit); // ★復活
+                    const delBtn = createIconBtn("🗑️", "bg-red-100 text-red-700 hover:bg-red-200", () => handleChangeStatus(g, '削除', 30000));
+                    const editBtn = createIconBtn("✏️", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", handleEdit); 
 
                     btnContainer.append(recBtn, achBtn, stpBtn, delBtn, editBtn);
                 
@@ -744,7 +749,7 @@ function initGoals() {
                     // 履歴タブのボタン
                     const restoreBtn = createBtn("再開する 🔄", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", () => handleChangeStatus(g, '再開', 0), true);
                     const delBtn = createBtn("完全に削除 🗑️", "bg-red-100 text-red-700 hover:bg-red-200", () => handleChangeStatus(g, '削除', 30000));
-                    const editBtn = createIconBtn("✏️", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", handleEdit); // ★復活
+                    const editBtn = createIconBtn("✏️", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", handleEdit); 
 
                     btnContainer.append(restoreBtn, delBtn, editBtn);
                 }
@@ -785,10 +790,8 @@ function initGoals() {
     const addBtn = document.getElementById('add-goal-button');
     if(addBtn) {
         addBtn.onclick = async() => {
-            // isGoalEdit: false を渡すことで、目標登録モーダルを起動
             const modalPromise = showModal({ title:'目標登録', showInput:true, inputType:'goal-form', showCancel:true, isGoalEdit: false });
             
-            // 目標相談ボタンは、モーダルが開いた後に挿入する
             setTimeout(() => {
                 const formArea = document.getElementById('modal-goal-form');
                 const uidStr = State.userID.toString();
@@ -820,7 +823,7 @@ function initGoals() {
     }
     const backBtn = document.querySelector('.back-button');
     if(backBtn) backBtn.onclick = () => navigateTo('top');
-    ren();
+    switchTab('active');
 }
 
 function initRecord() {
