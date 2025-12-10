@@ -56,35 +56,46 @@
         </div>
     </template>
 
-    <div id="terms-container" class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200 text-xs text-gray-500">
-    <label class="flex items-start gap-2 cursor-pointer">
-        <input type="checkbox" id="terms-check" class="mt-1 shrink-0">
-        <span>
-            <span class="font-bold text-gray-700">【利用規約・免責事項】</span><br>
-            本アプリは医療行為を提供するものではありません。身体的・精神的な不調を感じた場合は、速やかに専門機関にご相談ください。<br>
-            また、入力された内容はAIにより自動解析されます。<br>
-            <span class="text-emerald-600 font-bold">上記に同意して利用を開始します。</span>
-        </span>
-    </label>
-    </div>
-    
     <template id="login-template">
-        <div class="space-y-6">
-            <div class="flex flex-row items-center justify-center gap-4 mb-2"><div class="flex-shrink-0"><img src="https://i.gyazo.com/f54df4cfd34805089575f9d7bd268103.png" alt="LIFLO-AI Logo" width="80" class="object-contain"></div><div class="text-left"><h1 class="text-2xl md:text-3xl font-bold text-emerald-600 leading-tight">ライフロ-AI<br>へようこそ！ 🚀</h1></div></div>
-            <p class="text-center text-gray-600">あなたの生活目標の達成を「ライフロ」がサポートします！</p>
-            <form id="login-form" class="space-y-4" onsubmit="return false;">
-                <div><label for="userName" class="block text-sm font-medium text-gray-700">ニックネーム</label><input type="text" id="userName" name="username" autocomplete="username" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-emerald-500 focus:ring-emerald-500" placeholder="他のユーザーと重複不可" required></div>
-                <div><label for="userID" class="block text-sm font-medium text-gray-700">認証番号 (ID)</label><input type="number" inputmode="numeric" pattern="[0-9]*" id="userID" name="password" autocomplete="current-password" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-emerald-500 focus:ring-emerald-500" placeholder="数字のみ" required></div>
-                <button type="submit" id="login-button" class="w-full py-3 px-4 rounded-lg shadow-md text-white bg-emerald-600 hover:bg-emerald-700 font-semibold transition-colors mb-4">ログイン 👋</button>
-            </form>
-            <div class="text-center text-sm text-gray-500">
-                アカウントをお持ちでない方の<br>
-                <button id="register-button" type="button" class="text-emerald-600 font-bold hover:underline bg-transparent border-none cursor-pointer p-0 mt-1">
-                    新規登録はこちら
-                </button>
+    <div class="space-y-6">
+        <div class="flex flex-row items-center justify-center gap-4 mb-2">
+            <div class="flex-shrink-0">
+                <img src="https://i.gyazo.com/f54df4cfd34805089575f9d7bd268103.png" alt="LIFLO-AI Logo" width="80" class="object-contain">
+            </div>
+            <div class="text-left">
+                <h1 class="text-2xl md:text-3xl font-bold text-emerald-600 leading-tight">
+                    ライフロ-AI<br>へようこそ！ 🚀
+                </h1>
             </div>
         </div>
-    </template>
+        <p class="text-center text-gray-600">あなたの生活目標の達成を「ライフロ」がサポートします！</p>
+        
+        <div class="space-y-4">
+            <div>
+                <label for="userName" class="block text-sm font-medium text-gray-700">ニックネーム</label>
+                <input type="text" id="userName" name="userName" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-emerald-500 focus:ring-emerald-500" placeholder="他のユーザーと重複不可" required>
+            </div>
+            <div>
+                <label for="userID" class="block text-sm font-medium text-gray-700">暗証番号</label>
+                <input type="number" id="userID" name="userID" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-emerald-500 focus:ring-emerald-500" placeholder="数字のみ (例: 101)" required>
+            </div>
+        </div>
+
+        <div id="terms-container" class="mb-2 p-4 bg-gray-50 rounded-lg border border-gray-200 text-xs text-gray-500 max-w-md mx-auto">
+            <label class="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" id="terms-check" class="mt-1 shrink-0">
+                <span>
+                    <span class="font-bold text-gray-700">【利用規約・免責事項】</span><br>
+                    本アプリは医療行為を提供するものではありません。身体的・精神的な不調を感じた場合は、速やかに専門機関にご相談ください。<br>
+                    また、入力された内容はAIにより自動解析されます。<br>
+                    <span class="text-emerald-600 font-bold">上記に同意して利用を開始します。</span>
+                </span>
+            </label>
+        </div>
+        <button id="login-button" class="w-full py-3 px-4 rounded-lg shadow-md text-white bg-emerald-600 hover:bg-emerald-700 font-semibold">ログイン 👋 </button>
+        <button id="register-button" class="w-full py-3 px-4 border border-emerald-600 rounded-lg shadow-md text-emerald-600 bg-white hover:bg-emerald-50 font-semibold">新規登録はこちら</button>
+    </div>
+</template>
 
     <template id="top-menu-template">
         <div class="space-y-6 h-full flex flex-col">
