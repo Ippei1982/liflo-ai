@@ -561,24 +561,32 @@ async function fetchUserData() {
             if(rawG > 0 && d.goal) {
                 let realID = rawG;
                 let status = '';
-                // 1xxxx:達成, 2xxxx:中止, 3xxxx:完全に削除（履歴から非表示）
-                if (rawG >= 30000) { status = '削除'; realID = rawG - 30000; } // ★修正: 完全に削除のID
+                
+                // 3xxxx:完全に削除
+                if (rawG >= 30000) { status = '削除'; realID = rawG - 30000; }
+                // 2xxxx:中止
                 else if (rawG >= 20000) { status = '中止'; realID = rawG - 20000; }
+                // 1xxxx:達成
                 else if (rawG >= 10000) { status = '達成'; realID = rawG - 10000; }
                 
                 const existing = gm.get(realID);
                 const firstDate = existing ? existing.startDate : d.date;
 
-                // 履歴から非表示（status === '削除'）のものは、Mapにセットしない
-                if (status !== '削除' || !existing) {
+                // 【★重要修正ポイント】
+                // '削除'ステータスのレコードが見つかった場合、その目標ID（realID）はMapに含めません。
+                // 既にMapにある場合でも、最新のレコードが'削除'であれば上書きして除去します。
+                if (status === '削除') {
+                    gm.delete(realID);
+                } else {
+                    // 削除ではない場合、または最初のレコードの場合はセット
                     gm.set(realID, { goalNo: realID, goal: d.goal, startDate: firstDate, lastDate: d.date, status: status });
                 }
             }
         });
         
-        // Statusが'削除'のものをフィルタリングしてから、activeGoalsにセット
+        // Mapに残っているものが、現在のアクティブ/履歴目標です。
         State.activeGoals = Array.from(gm.values())
-            .filter(g => g.status !== '削除')
+            .filter(g => g.status !== '削除') // 念のためフィルターを維持
             .sort((a,b)=>a.goalNo-b.goalNo);
             
         let mx = 0; r.userRecords.forEach(d=>{ let g = parseInt(d.goalNo); if(g >= 10000) g = g % 10000; if(g > mx && g < 9999) mx = g; });
