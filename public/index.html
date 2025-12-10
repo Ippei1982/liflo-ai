@@ -58,25 +58,11 @@
 
     <template id="login-template">
         <div class="space-y-6">
-            <div class="flex flex-row items-center justify-center gap-4 mb-4"><div class="flex-shrink-0"><img src="https://i.gyazo.com/f54df4cfd34805089575f9d7bd268103.png" alt="LIFLO-AI Logo" width="80" class="object-contain"></div><div class="text-left"><h1 class="text-2xl md:text-3xl font-bold text-emerald-600 leading-tight">ライフロ-AI<br>へようこそ！ 🚀</h1></div></div>
+            <div class="flex flex-row items-center justify-center gap-4 mb-2"><div class="flex-shrink-0"><img src="https://i.gyazo.com/f54df4cfd34805089575f9d7bd268103.png" alt="LIFLO-AI Logo" width="80" class="object-contain"></div><div class="text-left"><h1 class="text-2xl md:text-3xl font-bold text-emerald-600 leading-tight">ライフロ-AI<br>へようこそ！ 🚀</h1></div></div>
             <p class="text-center text-gray-600">あなたの生活目標の達成を「ライフロ」がサポートします！</p>
             <form id="login-form" class="space-y-4" onsubmit="return false;">
                 <div><label for="userName" class="block text-sm font-medium text-gray-700">ニックネーム</label><input type="text" id="userName" name="username" autocomplete="username" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-emerald-500 focus:ring-emerald-500" placeholder="他のユーザーと重複不可" required></div>
                 <div><label for="userID" class="block text-sm font-medium text-gray-700">認証番号 (ID)</label><input type="number" inputmode="numeric" pattern="[0-9]*" id="userID" name="password" autocomplete="current-password" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-emerald-500 focus:ring-emerald-500" placeholder="数字のみ" required></div>
-                
-                <div id="terms-container" class="pt-2">
-                    <div class="p-3 bg-gray-50 rounded-lg border border-gray-200 text-xs text-gray-500 max-w-md mx-auto">
-                        <label class="flex items-start gap-2 cursor-pointer">
-                            <input type="checkbox" id="terms-check" class="mt-1 shrink-0">
-                            <span>
-                                <span class="font-bold text-gray-700">【利用規約・免責事項】</span><br>
-                                本アプリは医療行為を提供するものではありません。身体的・精神的な不調を感じた場合は、速やかに専門機関にご相談ください。<br>
-                                また、入力された内容はAIにより自動解析されます。<br>
-                                <span class="text-emerald-600 font-bold">上記に同意して利用を開始します。</span>
-                            </span>
-                        </label>
-                    </div>
-                </div>
                 <button type="submit" id="login-button" class="w-full py-3 px-4 rounded-lg shadow-md text-white bg-emerald-600 hover:bg-emerald-700 font-semibold transition-colors mb-4">ログイン 👋</button>
             </form>
             <div class="text-center text-sm text-gray-500">
@@ -98,7 +84,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 flex-1 overflow-y-auto pb-4">
                 <button data-action="goals" class="menu-button p-4 md:p-6 bg-emerald-500 text-white rounded-xl shadow-lg hover:bg-emerald-600 text-left active:scale-95 transition-transform"><span class="text-xl md:text-2xl font-bold block mb-1"> ① 目標管理・変更 🎯 </span><span class="text-xs md:text-sm opacity-90">目標の登録や修正、達成/中止を行います。</span></button>
                 <button data-action="record" class="menu-button p-4 md:p-6 bg-teal-500 text-white rounded-xl shadow-lg hover:bg-teal-600 text-left active:scale-95 transition-transform"><span class="text-xl md:text-2xl font-bold block mb-1"> ② 記録の入力！ ✍️ </span><span class="text-xs md:text-sm opacity-90">「ライフロ」と一緒に目標に対する記録を行ってみましょう！</span></button>
-                <button data-action="review" class="menu-button p-4 md:p-6 bg-cyan-500 text-white rounded-xl shadow-lg hover:bg-cyan-600 text-left active:scale-95 transition-transform"><span class="text-xl md:text-2xl font-bold block mb-1"> ③ 記録を振り返る 📈 </span><span class="text-xs md:text-sm opacity-90">これまでの記録を確認してみましょう！</span></span</button>
+                <button data-action="review" class="menu-button p-4 md:p-6 bg-cyan-500 text-white rounded-xl shadow-lg hover:bg-cyan-600 text-left active:scale-95 transition-transform"><span class="text-xl md:text-2xl font-bold block mb-1"> ③ 記録を振り返る 📈 </span><span class="text-xs md:text-sm opacity-90">これまでの記録を確認してみましょう！</span></button>
                 <button data-action="theory" class="menu-button p-4 md:p-6 bg-lime-500 text-white rounded-xl shadow-lg hover:bg-lime-600 text-left active:scale-95 transition-transform"><span class="text-xl md:text-2xl font-bold block mb-1"> ④ フローとは？ 💡 </span><span class="text-xs md:text-sm opacity-90">「ライフロ-AI」で応用しているフロー理論について紹介しています！</span></button>
             </div>
             <div class="mt-auto pt-4 border-t border-gray-100"><button id="logout-button" class="w-full py-3 px-4 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-800 transition font-medium text-center text-base">ログアウト</button></div>
@@ -122,24 +108,20 @@
         <div class="goal-card p-5 border border-emerald-100 rounded-2xl shadow-sm bg-white hover:shadow-md transition-shadow relative">
             <div class="mb-4">
                 <h3 class="text-lg font-bold text-gray-800 leading-snug mb-2" data-field="goal-title"></h3>
-                <div class="flex items-center justify-between mb-3">
-                    <span class="inline-flex items-center text-xs font-bold px-2 py-1 rounded border hidden" data-field="goal-cat-tag"></span>
-                    <span class="text-xs text-gray-400 font-medium hidden" data-field="goal-date-tag"></span>
-                </div>
-                <div class="bg-gray-50 rounded-lg p-2 border border-gray-100 hidden" data-field="goal-step">
-                    <p class="text-xs text-gray-500 font-bold mb-1"> 🏁 最初の一歩</p>
-                    <p class="text-sm text-gray-700 goal-step-text"></p>
-                </div>
+                <div class="flex items-center justify-between mb-3"><span class="inline-flex items-center text-xs font-bold px-2 py-1 rounded border hidden" data-field="goal-cat-tag"></span><span class="text-xs text-gray-400 font-medium hidden" data-field="goal-date-tag"></span></div>
+                <div class="bg-gray-50 rounded-lg p-2 border border-gray-100 hidden" data-field="goal-step"><p class="text-xs text-gray-500 font-bold mb-1"> 🏁 最初の一歩</p><p class="text-sm text-gray-700 goal-step-text"></p></div>
             </div>
-            <div class="flex items-stretch gap-3 button-container">
-                </div>
+            <div class="flex items-stretch gap-3">
+                <button type="button" data-action="start-record" class="flex-1 py-3 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold shadow-md hover:from-emerald-600 hover:to-teal-600 transform transition active:scale-95 flex items-center justify-center gap-2"><span class="text-xl"> ✍️ </span><span>今日の記録</span></button>
+                <button type="button" class="edit-btn px-4 bg-emerald-100 text-emerald-700 rounded-xl hover:bg-emerald-200 transition-colors flex items-center justify-center border border-emerald-200" title="内容を編集する"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+            </div>
         </div>
     </template>
 
     <template id="record-input-template">
         <div class="space-y-4 md:space-y-6 h-full flex flex-col">
             <h2 class="text-2xl md:text-3xl font-bold text-emerald-600"> ② 記録の入力 ✍️ </h2>
-            <div class="bg-white p-3 md:p-4 rounded-lg border border-emerald-200 shadow-sm"><label for="record-goal-select" class="block text-base font-bold text-gray-700 mb-2">記録する目標:</label><select id="record-goal-select" class="block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:ring-emerald-500 focus:border-emerald-500"></select></div>
+            <div class="bg-white p-3 md:p-4 rounded-lg border border-emerald-200 shadow-sm"><label for="record-goal-select" class="block text-base font-bold text-gray-700 mb-2">記録する目標:</label><select id="record-goal-select" class="block w-full rounded-lg border-gray-300 shadow-sm p-3 border text-lg focus:ring-emerald-500 focus:border-emerald-500"></select></div>
             <div id="last-regoal-banner" class="hidden mb-4 bg-orange-50 border-l-4 border-orange-400 p-4 rounded-r-lg shadow-sm"><div class="flex items-start"><div class="flex-shrink-0 text-2xl mr-3"> 🚩 </div><div><h3 class="text-xs font-bold text-orange-600 uppercase tracking-wide">前回の目標・課題</h3><p class="text-gray-900 font-bold mt-1 text-base leading-relaxed" id="last-regoal-text"></p></div></div></div>
             <div id="record-chat-area" class="flex-1 overflow-y-auto p-3 md:p-4 border border-gray-300 rounded-lg bg-gray-50 hide-scrollbar space-y-4 min-h-[300px]"><div class="flex w-full items-start gap-2"><div class="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 shadow mt-1 border border-emerald-200"><img src="https://i.gyazo.com/f54df4cfd34805089575f9d7bd268103.png" alt="AI" class="w-4/5 h-4/5 object-contain"></div><div class="chat-bubble chat-bubble-ai rounded-2xl rounded-tl-none p-4 max-w-[85%] text-base shadow bg-emerald-50 text-gray-800 leading-relaxed">こんにちは！ライフロです！今回の取り組みはいかがでしたか？<br>下のフォームから、CSバランス（挑戦度と能力度）と感想を教えてください！ 😊</div></div></div>
             <form id="cs-evaluation-form" class="space-y-4 md:space-y-6 p-3 md:p-4 border border-emerald-300 rounded-xl bg-emerald-50">
@@ -156,7 +138,7 @@
                 <div id="additional-chat-container" class="border-t border-gray-200 pt-4"><p class="text-sm text-gray-500 mb-2">※まだ調整が必要な場合はチャットを続けられます</p><div class="flex gap-2"><textarea id="chat-input" rows="1" class="flex-1 rounded-lg border-gray-300 shadow-sm p-3 border focus:ring-2 focus:ring-emerald-500 text-base" placeholder="返信を入力..."></textarea><button id="send-chat-button" class="w-20 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-md font-bold">送信</button></div></div>
             </div>
             <div id="coaching-options" class="flex flex-col space-y-3 mt-4 hidden"></div>
-            <button data-action="top" class="w-full py-2 px-4 text-gray-600 hover:underline transition back-button text-center mt-auto text-lg">トップページに戻る 🏠 </button>
+            <button data-action="top" class="w-full py-2 px-4 text-gray-600 hover:underline transition back-button text-center text-lg">トップページに戻る 🏠 </button>
         </div>
     </template>
 
