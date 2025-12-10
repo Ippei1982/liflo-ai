@@ -1,6 +1,6 @@
 /**
  * LIFLO-AI Application Script
- * Final Stable Version: Goals List Fix, Crisis Management, Full UI Consolidation
+ * EMERGENCY FIX: Restored to essential functions (Login/Top/Goals Navigation)
  */
 
 const LOGO_DATA = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PC9zdmc+";
@@ -17,7 +17,7 @@ const State = {
 
 const appDiv = document.getElementById('app');
 
-// --- Helper Functions ---
+// --- Helper Functions (省略せずに再掲) ---
 
 function getFormattedDate() {
     const now = new Date();
@@ -178,9 +178,10 @@ function checkCrisisKeywords(text, uiCallback) {
     return false;
 }
 
-// --- 1. Main LLM Logic ---
+// --- 1. Main LLM Logic (省略) ---
 
 async function fetchLLM(prompt) {
+    // ... LLMロジックは変更なし ...
     let currentContext = "";
     let latestRegoal = null;
     if (State.selectedGoal) {
@@ -251,9 +252,11 @@ async function fetchLLM(prompt) {
     }
 }
 
-// --- 2. Goal Consultation LLM Logic ---
+
+// --- 2. Goal Consultation LLM Logic (省略) ---
 
 async function fetchGoalConsultLLM(history, userInput) {
+    // ... LLMロジックは変更なし ...
     const sys = `
     あなたは「ライフロ」です。ユーザーの「新しい目標設定」をサポートするガイドです。
     
@@ -312,7 +315,7 @@ async function fetchGoalConsultLLM(history, userInput) {
     }
 }
 
-// --- UI Logic: Goal Consultation ---
+// --- UI Logic: Goal Consultation (省略) ---
 
 async function startGoalConsultation(targetInputs) {
     const template = document.getElementById('goal-consult-template');
@@ -590,9 +593,8 @@ function initGoals() {
     const tabActive = document.getElementById('tab-active');
     const tabHistory = document.getElementById('tab-history');
     
-    if(!tabActive || !tabHistory) {
-         // Tabs not found
-    } else {
+    // タブ要素のイベント設定
+    if(tabActive && tabHistory) {
         const baseTabClass = "flex-1 px-4 py-3 text-sm font-bold transition-colors text-center cursor-pointer";
         const activeStyle = "text-emerald-600 border-b-4 border-emerald-600 bg-white";
         const historyStyle = "text-orange-500 border-b-4 border-orange-500 bg-white";
@@ -618,6 +620,7 @@ function initGoals() {
         if(!lst) return;
         lst.innerHTML = '';
         
+        // 表示対象の目標をフィルタリング
         const targets = State.activeGoals.filter(g => { 
             if (currentTab === 'active') return !g.status; 
             else return g.status === '達成' || g.status === '中止';
@@ -648,12 +651,13 @@ function initGoals() {
             const btnContainer = t.querySelector('.button-container');
 
 
+            // 1. タイトルとカードのスタイリング
             if(currentTab === 'history') {
                 if (g.status === '達成') {
-                    cardContainer.classList.add('bg-yellow-50', 'border-yellow-200');
+                    if (cardContainer) cardContainer.classList.add('bg-yellow-50', 'border-yellow-200');
                     if (titleEl) titleEl.innerHTML = `<span class="text-yellow-600 mr-1">🏆 達成</span> ${titleOnly}`;
                 } else if (g.status === '中止') {
-                    cardContainer.classList.add('bg-gray-100', 'border-gray-200');
+                    if (cardContainer) cardContainer.classList.add('bg-gray-100', 'border-gray-200');
                     if (titleEl) {
                         titleEl.classList.add('text-gray-500');
                         titleEl.innerHTML = `<span class="text-gray-400 mr-1">⏹️ 中止</span> <span class="line-through">${titleOnly}</span>`;
@@ -663,7 +667,7 @@ function initGoals() {
                 if (titleEl) titleEl.textContent = `[#${g.goalNo}] ${titleOnly}`;
             }
 
-            // カテゴリタグ
+            // 2. カテゴリタグ
             if (category && catTag) {
                 let colorClass = 'bg-purple-50 text-purple-700 border-purple-200'; let icon = '📂';
                 if (category.includes('仕事') || category.includes('キャリア')) { colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-200'; icon = '💼'; }
@@ -676,7 +680,7 @@ function initGoals() {
                 if(g.status === '中止') catTag.className = `inline-flex items-center text-xs font-bold px-2 py-1 rounded border bg-gray-200 text-gray-500 border-gray-300`;
             }
 
-            // 日付表示
+            // 3. 日付表示
             if (g.startDate && dateTag) {
                 const startStr = formatDateForDisplay(g.startDate).split(' ')[0];
                 if (currentTab === 'history') { 
@@ -688,14 +692,14 @@ function initGoals() {
                 dateTag.classList.remove('hidden');
             }
 
-            // 最初の一歩表示
+            // 4. 最初の一歩表示
             if (step && stepEl && stepText) { 
                 stepText.textContent = step; 
                 stepEl.classList.remove('hidden');
                 if(g.status === '中止') stepEl.classList.add('opacity-50');
             }
 
-            // --- ボタン生成エリア ---
+            // 5. ボタン生成エリア
             if(btnContainer) {
                 btnContainer.innerHTML = '';
                 
