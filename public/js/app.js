@@ -1,6 +1,6 @@
 /**
  * LIFLO-AI Application Script
- * Update: Goal Consultation Fix (Avoid loop & Update placeholder)
+ * FINAL STABLE VERSION: Global Error Handling and Goals List Fix
  */
 
 const LOGO_DATA = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PC9zdmc+";
@@ -49,7 +49,7 @@ function getGoalMainText(fullText) {
     return fullText;
 }
 
-function showModal({ title, message = '', showInput = false, inputType = 'default', placeholder = '', showCancel = false }) {
+function showModal({ title, message = '', showInput = false, inputType = 'default', placeholder = '', showCancel = false, isGoalEdit = false, currentGoal = {} }) {
     return new Promise((resolve) => {
         const t = document.getElementById('modal-template').content.cloneNode(true);
         const backdrop = t.getElementById('modal-backdrop');
@@ -60,7 +60,25 @@ function showModal({ title, message = '', showInput = false, inputType = 'defaul
 
         if(showInput){
             if(inputType==='default'){ iCon.classList.remove('hidden'); iEl.placeholder=placeholder; }
-            else if(inputType==='goal-form') gForm.classList.remove('hidden');
+            else if(inputType==='goal-form') {
+                gForm.classList.remove('hidden');
+                
+                const statusSelectContainer = document.getElementById('modal-goal-form').querySelector('div:last-child');
+                
+                if (isGoalEdit && currentGoal.goal) {
+                    setTimeout(() => {
+                        document.getElementById('goal-input-main').value = getGoalMainText(currentGoal.goal);
+                        const catMatch = currentGoal.goal.match(/Cat:(.*?)(?:,|,\s|\)|$)/);
+                        const stepMatch = currentGoal.goal.match(/1st:(.*?)(?:,|,\s|\)|$)/);
+                        if (catMatch) document.getElementById('goal-input-category').value = catMatch[1].trim();
+                        if (stepMatch) document.getElementById('goal-input-step').value = stepMatch[1].trim();
+                        document.getElementById('goal-input-status').value = currentGoal.status || ''; 
+                    }, 50);
+                    if (statusSelectContainer) statusSelectContainer.style.display = 'block';
+                } else if (!isGoalEdit) {
+                    if (statusSelectContainer) statusSelectContainer.style.display = 'none';
+                }
+            }
         }
         if(showCancel){
             can.classList.remove('hidden');
@@ -117,7 +135,47 @@ function extractLLMData(txt) {
     return { text: c, data: null };
 }
 
-// --- 1. Main LLM Logic (OT Record & Review) ---
+// --- Crisis Management Logic ---
+function checkCrisisKeywords(text, uiCallback) {
+    if (!text) return false;
+    const dangerKeywords = [
+        '死にたい', '消えたい', '自殺', '死ぬ', '逝きたい',
+        '殺したい', '殺す', '刺す', '殴る', '復讐',
+        '陥れる', '許さない', '破滅', '死ね', 'おとしいれる'
+    ];
+
+    if (dangerKeywords.some(word => text.includes(word))) {
+        const warningHtml = `
+            <div class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 shadow-sm">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-2xl">⚠️</span>
+                    <span class="font-bold text-lg">AIからのメッセージ</span>
+                </div>
+                <p class="text-sm font-bold mb-2">入力された内容には、AIが適切に対応できない、または利用規約に抵触する可能性のある表現が含まれています。</p>
+                <p class="text-sm mb-3">強いストレスや悩み、またはトラブルを抱えている場合は、AIではなく専門の相談機関や窓口をご利用ください。</p>
+                <div class="bg-white p-3 rounded border border-red-100 text-xs text-gray-600">
+                    <strong>相談窓口のご案内:</strong>
+                    <ul class="list-disc ml-5 mt-1 space-y-1">
+                        <li><a href="https://www.inochinodenwa.org/" target="_blank" class="underline text-blue-600">いのちの電話</a></li>
+                        <li><a href="https://www.houterasu.or.jp/" target="_blank" class="underline text-blue-600">法テラス</a></li>
+                        <li><a href="https://www.mhlw.go.jp/mamorouyokokoro/" target="_blank" class="underline text-blue-600">まもろうよこころ</a></li>
+                    </ul>
+                </div>
+            </div>
+        `;
+        const area = document.getElementById('record-chat-area');
+        if (area && !area.classList.contains('hidden')) {
+            addChatMessage(warningHtml, 'bot');
+        } else {
+            customAlert(warningHtml);
+        }
+        if (uiCallback) uiCallback();
+        return true; 
+    }
+    return false;
+}
+
+// --- 1. Main LLM Logic ---
 
 async function fetchLLM(prompt) {
     let currentContext = "";
@@ -190,7 +248,7 @@ async function fetchLLM(prompt) {
     }
 }
 
-// --- 2. Goal Consultation LLM Logic (Improved Flow & Suggestion) ---
+// --- 2. Goal Consultation LLM Logic (省略) ---
 
 async function fetchGoalConsultLLM(history, userInput) {
     const sys = `
@@ -251,7 +309,7 @@ async function fetchGoalConsultLLM(history, userInput) {
     }
 }
 
-// --- UI Logic: Goal Consultation ---
+// --- UI Logic: Goal Consultation (省略) ---
 
 async function startGoalConsultation(targetInputs) {
     const template = document.getElementById('goal-consult-template');
@@ -264,7 +322,6 @@ async function startGoalConsultation(targetInputs) {
     const sendBtn = clone.getElementById('consult-send');
     const closeBtn = clone.getElementById('consult-close');
 
-    // ★修正点: プレースホルダーの文言変更
     input.placeholder = "ここに書き込んでみましょう！✍️";
 
     document.body.appendChild(backdrop);
@@ -289,7 +346,6 @@ async function startGoalConsultation(targetInputs) {
         if(!isUser && text) chatHistory.push({role: 'bot', text: text});
     };
 
-    // ランダムな挨拶例
     const examples = [
         "「英語を話せるようになりたい」",
         "「毎朝ウォーキングしたい」",
@@ -308,10 +364,15 @@ async function startGoalConsultation(targetInputs) {
     const handleSend = async () => {
         const txt = input.value.trim();
         if(!txt) return;
+
+        const resetBtn = () => { sendBtn.disabled = false; sendBtn.textContent = '送信'; };
+        if(checkCrisisKeywords(txt, resetBtn)) {
+            addMsg(`<span class="font-bold text-red-600">⚠️ 適切な対応ができない表現が含まれているため、中断しました。<br>専門機関へご相談ください。</span>`, false);
+            return;
+        }
+
         input.value = '';
-        
         addMsg(txt, true);
-        
         sendBtn.disabled = true; sendBtn.textContent = '...';
         
         const resRaw = await fetchGoalConsultLLM(chatHistory, txt);
@@ -320,7 +381,6 @@ async function startGoalConsultation(targetInputs) {
         if(text) addMsg(text, false);
 
         if(data) {
-            // JSONが来たら完了処理
             setTimeout(async () => {
                 document.body.removeChild(backdrop);
 
@@ -359,20 +419,42 @@ async function startGoalConsultation(targetInputs) {
 // --- Render & Init Functions ---
 
 function render() {
-    appDiv.innerHTML = '';
-    let id = 'login-template';
-    if(State.view==='top') id='top-menu-template';
-    else if(State.view==='goals') id='goal-management-template';
-    else if(State.view==='record') id='record-input-template';
-    else if(State.view==='review') id='review-template';
-    else if(State.view==='theory') id='theory-template';
-    appDiv.appendChild(document.getElementById(id).content.cloneNode(true));
-    if(State.view==='login') initLogin();
-    else if(State.view==='top') initTop();
-    else if(State.view==='goals') initGoals();
-    else if(State.view==='record') initRecord();
-    else if(State.view==='review') initReview();
-    else if(State.view==='theory') initTheoryPage();
+    // ★グローバルエラーハンドリングの強化
+    try {
+        appDiv.innerHTML = '';
+        let id = 'login-template';
+        if(State.view==='top') id='top-menu-template';
+        else if(State.view==='goals') id='goal-management-template';
+        else if(State.view==='record') id='record-input-template';
+        else if(State.view==='review') id='review-template';
+        else if(State.view==='theory') id='theory-template';
+        
+        // ★ HTMLテンプレートの存在チェック
+        const template = document.getElementById(id);
+        if (!template) {
+             throw new Error(`Template not found: ${id}`);
+        }
+        
+        appDiv.appendChild(template.content.cloneNode(true));
+        
+        // 各ビューの初期化
+        if(State.view==='login') initLogin();
+        else if(State.view==='top') initTop();
+        else if(State.view==='goals') initGoals();
+        else if(State.view==='record') initRecord();
+        else if(State.view==='review') initReview();
+        else if(State.view==='theory') initTheoryPage();
+    } catch (error) {
+        console.error("Render Critical Error:", error);
+        // ログイン画面の表示を試みる (無限ループ防止のため、State.viewが'login'になる前の状態でのみ再帰を許容)
+        if (State.view !== 'login' && !appDiv.querySelector('#login-button')) {
+             State.view = 'login';
+             render();
+        } else {
+             // ログイン画面でも失敗した場合
+             appDiv.innerHTML = '<div class="text-center p-10 text-red-600">初期化中に致命的なエラーが発生しました。アプリをリロードしてください。</div>';
+        }
+    }
 }
 
 function navigateTo(v, d={}) {
@@ -413,29 +495,70 @@ function initLogin() {
     const regBtn = document.getElementById('register-button');
     const userIdInput = document.getElementById('userID');
     const userNameInput = document.getElementById('userName');
+    
+    // ★追加機能：同意チェックボックスの取得
+    const termsContainer = document.querySelector('#terms-container'); 
+    const termsCheck = document.querySelector('#terms-check');
+    const termsCheckExist = termsContainer && termsCheck; 
+
+    // 初回のみ表示ロジック
+    if (termsCheckExist && localStorage.getItem('LIFLO_TERMS_AGREED') === 'true') {
+        termsContainer.style.display = 'none';
+        termsCheck.checked = true; // 内部的にチェック済みに
+    } else if (termsCheckExist) {
+        termsContainer.style.display = 'block'; 
+        termsCheck.checked = false;
+    }
+
     if (!userIdInput || !userNameInput) { customAlert('【システムエラー】\nHTML内の入力欄が見つかりません。'); return; }
+    
     const auth = async(act) => {
         let uid = userIdInput.value.trim();
         const nm = userNameInput.value.trim();
         if(!uid || !nm){ customAlert('ニックネームと認証番号(ID)を入力してください'); return; }
+        
+        // 新規登録時の同意チェック必須
+        if (act === 'register' && termsCheckExist && !termsCheck.checked) {
+            customAlert('利用を開始するには、免責事項への同意が必要です。');
+            return;
+        }
+        // ログイン時は、チェックボックスが表示されていればチェックを求める
+        if (act === 'auth' && termsCheckExist && termsContainer.style.display !== 'none' && !termsCheck.checked) {
+             customAlert('続行するには、免責事項への同意が必要です。');
+             return;
+        }
+
         uid = parseInt(uid, 10).toString();
-        if(loginBtn) { loginBtn.textContent = '読み込み中... 🔄'; loginBtn.disabled = true; loginBtn.classList.add('opacity-70', 'cursor-not-allowed'); }
+        const targetBtn = act === 'auth' ? loginBtn : regBtn;
+        const originalText = targetBtn ? targetBtn.textContent : '';
+
+        if(targetBtn) { 
+            targetBtn.textContent = '通信中... 🔄'; 
+            targetBtn.disabled = true; 
+            targetBtn.classList.add('opacity-70', 'cursor-not-allowed'); 
+        }
+
         try {
             const r = await fetchGAS('POST', { action:act, userID:uid, userName:nm });
             if(r.status === 'success'){
+                // 成功時に同意フラグを記録
+                if (termsCheckExist && termsCheck.checked) {
+                    localStorage.setItem('LIFLO_TERMS_AGREED', 'true');
+                }
                 State.userID = uid; State.userName = nm;
-                if(loginBtn) loginBtn.textContent = '成功！ 🎉';
+                if(targetBtn) targetBtn.textContent = '成功！ 🎉';
                 await customAlert(`<div class="text-center"><div class="flex justify-center mb-2"><img src="https://i.gyazo.com/611879904819fa76fa1d05bc9f6ce711.png" alt="Success" class="w-40 object-contain"></div><p class="font-bold text-lg">ログインしました！</p></div>`);
                 await fetchUserData(); navigateTo('top');
             } else {
                 customAlert(`ログイン失敗 😓 \n${r.message || 'IDまたはニックネームを確認してください'}`);
-                if(loginBtn) { loginBtn.textContent = 'ログイン 👋'; loginBtn.disabled = false; loginBtn.classList.remove('opacity-70', 'cursor-not-allowed'); }
+                if(targetBtn) { targetBtn.textContent = originalText; targetBtn.disabled = false; targetBtn.classList.remove('opacity-70', 'cursor-not-allowed'); }
             }
         } catch (error) {
             console.error(error); customAlert(`エラーが発生しました:\n${error.message}`);
-            if(loginBtn) { loginBtn.textContent = 'ログイン 👋'; loginBtn.disabled = false; loginBtn.classList.remove('opacity-70', 'cursor-not-allowed'); }
+            if(targetBtn) { targetBtn.textContent = originalText; targetBtn.disabled = false; targetBtn.classList.remove('opacity-70', 'cursor-not-allowed'); }
         }
     };
+
     if (loginForm) { loginForm.addEventListener('submit', (e) => { e.preventDefault(); auth('auth'); }); }
     else if(loginBtn) { loginBtn.onclick = (e) => { e.preventDefault(); auth('auth'); }; }
     
@@ -462,15 +585,30 @@ async function fetchUserData() {
             if(rawG > 0 && d.goal) {
                 let realID = rawG;
                 let status = '';
-                if (rawG >= 20000) { status = '中止'; realID = rawG - 20000; }
+                // ★修正：論理削除のID判定ロジック
+                if (rawG >= 30000) { status = '削除'; realID = rawG - 30000; }
+                else if (rawG >= 20000) { status = '中止'; realID = rawG - 20000; }
                 else if (rawG >= 10000) { status = '達成'; realID = rawG - 10000; }
+                
                 const existing = gm.get(realID);
                 const firstDate = existing ? existing.startDate : d.date;
                 gm.set(realID, { goalNo: realID, goal: d.goal, startDate: firstDate, lastDate: d.date, status: status });
             }
         });
-        State.activeGoals = Array.from(gm.values()).sort((a,b)=>a.goalNo-b.goalNo);
-        let mx = 0; r.userRecords.forEach(d=>{ let g = parseInt(d.goalNo); if(g >= 10000) g = g % 10000; if(g > mx && g < 9999) mx = g; });
+        
+        // ★修正：目標リストのフィルタリング（削除されたものを除外）
+        State.activeGoals = Array.from(gm.values())
+            .filter(g => g.status !== '削除')
+            .sort((a,b)=>a.goalNo-b.goalNo);
+
+        let mx = 0; 
+        r.userRecords.forEach(d=>{ 
+            let g = parseInt(d.goalNo); 
+            if(g >= 30000) g = g % 10000;
+            else if(g >= 20000) g = g % 10000;
+            else if(g >= 10000) g = g % 10000;
+            if(g > mx && g < 9999) mx = g; 
+        });
         State.nextGoalNo = mx + 1;
     }
 }
@@ -483,7 +621,12 @@ function initTop() {
         button.addEventListener('click', (e) => {
             const target = e.currentTarget;
             const action = target.dataset.action;
-            if(action === 'record' && State.activeGoals.length === 0) { customAlert('目標を登録してください'); navigateTo('goals'); } else { navigateTo(action); }
+            if(action === 'record' && State.activeGoals.filter(g => !g.status).length === 0) { 
+                customAlert('進行中の目標がありません。目標管理画面で新しい目標を登録するか、履歴から目標を「再開」してください。'); 
+                navigateTo('goals'); 
+            } else { 
+                navigateTo(action); 
+            }
         });
     });
     
@@ -499,115 +642,239 @@ function initGoals() {
     let currentTab = 'active';
     const tabActive = document.getElementById('tab-active');
     const tabHistory = document.getElementById('tab-history');
-    const baseTabClass = "flex-1 px-4 py-3 text-sm font-bold transition-colors text-center";
-    const activeStyle = "text-emerald-600 border-b-4 border-emerald-600";
-    const historyStyle = "text-orange-500 border-b-4 border-orange-500";
-    const inactiveStyle = "text-gray-400 hover:text-gray-600 border-b border-gray-200";
-    const switchTab = (tab) => {
-        currentTab = tab;
-        if(tab === 'active') { tabActive.className = `${baseTabClass} ${activeStyle}`; tabHistory.className = `${baseTabClass} ${inactiveStyle}`; }
-        else { tabActive.className = `${baseTabClass} ${inactiveStyle}`; tabHistory.className = `${baseTabClass} ${historyStyle}`; }
-        ren();
-    };
-    if(tabActive && tabHistory) { tabActive.onclick = () => switchTab('active'); tabHistory.onclick = () => switchTab('history'); }
+    
+    // タブ要素のイベント設定
+    if(tabActive && tabHistory) {
+        const baseTabClass = "flex-1 px-4 py-3 text-sm font-bold transition-colors text-center cursor-pointer";
+        const activeStyle = "text-emerald-600 border-b-4 border-emerald-600 bg-white";
+        const historyStyle = "text-orange-500 border-b-4 border-orange-500 bg-white";
+        const inactiveStyle = "text-gray-400 hover:text-gray-600 border-b border-gray-200 bg-gray-50";
+        
+        const switchTab = (tab) => {
+            currentTab = tab;
+            if(tab === 'active') { 
+                tabActive.className = `${baseTabClass} ${activeStyle}`; 
+                tabHistory.className = `${baseTabClass} ${inactiveStyle}`; 
+            } else { 
+                tabActive.className = `${baseTabClass} ${inactiveStyle}`; 
+                tabHistory.className = `${baseTabClass} ${historyStyle}`; 
+            }
+            ren();
+        };
+        tabActive.onclick = () => switchTab('active'); 
+        tabHistory.onclick = () => switchTab('history');
+        switchTab('active');
+    }
+
     const ren = () => {
+        if(!lst) return;
         lst.innerHTML = '';
-        const targets = State.activeGoals.filter(g => { if (currentTab === 'active') return !g.status; else return g.status; });
-        if(targets.length === 0) { lst.innerHTML = `<p class="text-center text-gray-400 mt-10">${currentTab === 'active' ? '進行中の目標はありません 🌱' : '履歴はありません 📜'}</p>`; }
+        
+        // 表示対象の目標をフィルタリング
+        const targets = State.activeGoals.filter(g => { 
+            if (currentTab === 'active') return !g.status; 
+            else return g.status === '達成' || g.status === '中止';
+        });
+
+        if(targets.length === 0) { 
+            lst.innerHTML = `<p class="text-center text-gray-400 mt-10">${currentTab === 'active' ? '進行中の目標はありません 🌱' : '履歴はありません 📜'}</p>`; 
+        }
+
         targets.forEach(g => {
-            const template = document.getElementById('goal-card-template');
-            if(!template) return;
-            const t = template.content.cloneNode(true);
-            const fullTitle = g.goal || '';
-            const titleOnly = fullTitle.split(' (')[0];
-            const catMatch = fullTitle.match(/Cat:(.*?)(?:,|,\s|\)|$)/);
-            const stepMatch = fullTitle.match(/1st:(.*?)(?:,|,\s|\)|$)/);
-            const category = catMatch ? catMatch[1].trim() : '';
-            const step = stepMatch ? stepMatch[1].trim() : '';
-            const titleEl = t.querySelector('[data-field="goal-title"]');
-            if(titleEl) {
-                let prefix = '';
-                if (g.status === '達成') prefix = '🎉 ';
-                if (g.status === '中止') prefix = '⏹️ ';
-                titleEl.textContent = `[#${g.goalNo}] ${prefix}${titleOnly}`;
-                if(g.status === '中止') titleEl.classList.add('text-gray-400');
+            try { 
+                const template = document.getElementById('goal-card-template');
+                if(!template) return;
+                const t = template.content.cloneNode(true);
+                const fullTitle = g.goal || '';
+                const titleOnly = fullTitle.split(' (')[0];
+                const catMatch = fullTitle.match(/Cat:(.*?)(?:,|,\s|\)|$)/);
+                const stepMatch = fullTitle.match(/1st:(.*?)(?:,|,\s|\)|$)/);
+                const category = catMatch ? catMatch[1].trim() : '';
+                const step = stepMatch ? stepMatch[1].trim() : '';
+                
+                // 目標カード内の要素を安全に取得
+                const titleEl = t.querySelector('[data-field="goal-title"]');
+                const cardContainer = t.querySelector('.goal-card');
+                const catTag = t.querySelector('[data-field="goal-cat-tag"]');
+                const dateTag = t.querySelector('[data-field="goal-date-tag"]');
+                const stepEl = t.querySelector('[data-field="goal-step"]');
+                const stepText = t.querySelector('.goal-step-text');
+                const btnContainer = t.querySelector('.button-container');
+
+
+                // 1. タイトルとカードのスタイリング
+                if(currentTab === 'history') {
+                    if (g.status === '達成') {
+                        if (cardContainer) cardContainer.classList.add('bg-yellow-50', 'border-yellow-200');
+                        if (titleEl) titleEl.innerHTML = `<span class="text-yellow-600 mr-1">🏆 達成</span> ${titleOnly}`;
+                    } else if (g.status === '中止') {
+                        if (cardContainer) cardContainer.classList.add('bg-gray-100', 'border-gray-200');
+                        if (titleEl) {
+                            titleEl.classList.add('text-gray-500');
+                            titleEl.innerHTML = `<span class="text-gray-400 mr-1">⏹️ 中止</span> <span class="line-through">${titleOnly}</span>`;
+                        }
+                    }
+                } else {
+                    if (titleEl) titleEl.textContent = `[#${g.goalNo}] ${titleOnly}`;
+                }
+
+                // 2. カテゴリタグ
+                if (category && catTag) {
+                    let colorClass = 'bg-purple-50 text-purple-700 border-purple-200'; let icon = '📂';
+                    if (category.includes('仕事') || category.includes('キャリア')) { colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-200'; icon = '💼'; }
+                    else if (category.includes('健康') || category.includes('運動')) { colorClass = 'bg-orange-50 text-orange-700 border-orange-200'; icon = '🏃'; }
+                    else if (category.includes('趣味') || category.includes('教養')) { colorClass = 'bg-blue-50 text-blue-700 border-blue-200'; icon = '📚'; }
+                    else if (category.includes('人間関係')) { colorClass = 'bg-pink-50 text-pink-700 border-pink-200'; icon = '🤝'; }
+                    catTag.textContent = `${icon} ${category}`;
+                    catTag.className = `inline-flex items-center text-xs font-bold px-2 py-1 rounded border ${colorClass}`;
+                    catTag.classList.remove('hidden');
+                    if(g.status === '中止') catTag.className = `inline-flex items-center text-xs font-bold px-2 py-1 rounded border bg-gray-200 text-gray-500 border-gray-300`;
+                }
+
+                // 3. 日付表示
+                if (g.startDate && dateTag) {
+                    const startStr = formatDateForDisplay(g.startDate).split(' ')[0];
+                    if (currentTab === 'history') { 
+                        const endStr = g.lastDate ? formatDateForDisplay(g.lastDate).split(' ')[0] : '???'; 
+                        dateTag.textContent = `📅 ${startStr} ～ ${endStr}`; 
+                    } else { 
+                        dateTag.textContent = `📅 登録: ${startStr}`; 
+                    }
+                    dateTag.classList.remove('hidden');
+                }
+
+                // 4. 最初の一歩表示
+                if (step && stepEl && stepText) { 
+                    stepText.textContent = step; 
+                    stepEl.classList.remove('hidden');
+                    if(g.status === '中止') stepEl.classList.add('opacity-50');
+                }
+
+                // 5. ボタン生成エリア
+                if(btnContainer) {
+                    btnContainer.innerHTML = '';
+                    
+                    // 編集ボタンの共通処理
+                    const handleEdit = async () => {
+                        const modalPromise = showModal({ title: '目標の編集', showInput: true, inputType: 'goal-form', showCancel: true, isGoalEdit: true, currentGoal: g });
+                        const result = await modalPromise;
+                        if(!result) return;
+                        
+                        const checkText = `${result.goal} ${result.step}`;
+                        if(checkCrisisKeywords(checkText)) return;
+
+                        let currentStatusOffset = 0;
+                        if(result.status === '達成') currentStatusOffset = 10000;
+                        else if(result.status === '中止') currentStatusOffset = 20000;
+
+                        const saveID = currentStatusOffset + g.goalNo;
+                        const newGoalString = `${result.goal} (Cat:${result.category}, 1st:${result.step})`;
+                        
+                        await fetchGAS('POST', { action: 'saveData', date: getFormattedDate(), userID: State.userID, userName: State.userName, goalNo: saveID, goal: newGoalString });
+                        customAlert('更新しました！✨'); await fetchUserData(); ren();
+                    };
+
+                    // ヘルパー関数
+                    const createBtn = (text, colorClass, onClick, isGrow = false) => {
+                        const b = document.createElement('button');
+                        b.className = `py-2 px-3 text-sm rounded-lg font-bold ${colorClass} ${isGrow ? 'flex-grow' : ''}`;
+                        b.textContent = text;
+                        b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); onClick(); };
+                        return b;
+                    };
+                    const createIconBtn = (icon, colorClass, onClick) => {
+                        const b = document.createElement('button');
+                        b.className = `p-3 text-sm rounded-lg font-bold ${colorClass}`;
+                        b.textContent = icon;
+                        b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); onClick(); };
+                        return b;
+                    };
+
+                    if (currentTab === 'active') {
+                        // 進行中タブのボタン
+                        const recBtn = createBtn("今日の記録 ✍️", "bg-teal-100 text-teal-700 hover:bg-teal-200", () => navigateTo('record', {goal:g}), true);
+                        const achBtn = createBtn("達成 🎉", "bg-yellow-100 text-yellow-700 hover:bg-yellow-200", () => handleChangeStatus(g, '達成', 10000));
+                        const stpBtn = createBtn("中止 ⏹️", "bg-gray-100 text-gray-700 hover:bg-gray-200", () => handleChangeStatus(g, '中止', 20000));
+                        const delBtn = createIconBtn("🗑️", "bg-red-100 text-red-700 hover:bg-red-200", () => handleChangeStatus(g, '削除', 30000));
+                        const editBtn = createIconBtn("✏️", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", handleEdit); 
+
+                        btnContainer.append(recBtn, achBtn, stpBtn, delBtn, editBtn);
+                    
+                    } else if (currentTab === 'history') {
+                        // 履歴タブのボタン
+                        const restoreBtn = createBtn("再開する 🔄", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", () => handleChangeStatus(g, '再開', 0), true);
+                        const delBtn = createBtn("完全に削除 🗑️", "bg-red-100 text-red-700 hover:bg-red-200", () => handleChangeStatus(g, '削除', 30000));
+                        const editBtn = createIconBtn("✏️", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", handleEdit); 
+
+                        btnContainer.append(restoreBtn, delBtn, editBtn);
+                    }
+                }
+                lst.appendChild(t);
+            } catch (e) {
+                // 個別のカード生成エラーを報告しつつ、処理は継続
+                console.error(`Error rendering goal card for #${g.goalNo}:`, e);
             }
-            const catTag = t.querySelector('[data-field="goal-cat-tag"]');
-            if (category && catTag) {
-                let colorClass = 'bg-purple-50 text-purple-700 border-purple-200'; let icon = '📂';
-                if (category.includes('仕事') || category.includes('キャリア')) { colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-200'; icon = '💼'; }
-                else if (category.includes('健康') || category.includes('運動')) { colorClass = 'bg-orange-50 text-orange-700 border-orange-200'; icon = '🏃'; }
-                else if (category.includes('趣味') || category.includes('教養')) { colorClass = 'bg-blue-50 text-blue-700 border-blue-200'; icon = '📚'; }
-                else if (category.includes('人間関係')) { colorClass = 'bg-pink-50 text-pink-700 border-pink-200'; icon = '🤝'; }
-                catTag.textContent = `${icon} ${category}`;
-                catTag.className = `inline-flex items-center text-xs font-bold px-2 py-1 rounded border ${colorClass}`;
-                catTag.classList.remove('hidden');
-            }
-            const dateTag = t.querySelector('[data-field="goal-date-tag"]');
-            if (g.startDate && dateTag) {
-                const startStr = formatDateForDisplay(g.startDate).split(' ')[0];
-                if (currentTab === 'history') { const endStr = g.lastDate ? formatDateForDisplay(g.lastDate).split(' ')[0] : '???'; dateTag.textContent = `📅 ${startStr} ～ ${endStr}`; }
-                else { dateTag.textContent = `📅 登録: ${startStr}`; }
-                dateTag.classList.remove('hidden');
-            }
-            const stepEl = t.querySelector('[data-field="goal-step"]');
-            const stepText = t.querySelector('.goal-step-text');
-            if (step && stepEl && stepText) { stepText.textContent = step; stepEl.classList.remove('hidden'); }
-            const editBtn = t.querySelector('.edit-btn');
-            if(editBtn) {
-                editBtn.onclick = async (e) => {
-                    e.preventDefault(); e.stopPropagation();
-                    const modalPromise = showModal({ title: '目標の編集・状態変更', showInput: true, inputType: 'goal-form', showCancel: true });
-                    setTimeout(() => {
-                        const mMain = document.getElementById('goal-input-main'); const mCat = document.getElementById('goal-input-category'); const mStep = document.getElementById('goal-input-step'); const mStat = document.getElementById('goal-input-status');
-                        if(mMain) mMain.value = titleOnly; if(mCat) mCat.value = category; if(mStep) mStep.value = step; if(mStat) mStat.value = g.status || '';
-                    }, 50);
-                    const result = await modalPromise;
-                    if(!result) return;
-                    let saveID = g.goalNo;
-                    if (result.status === '達成') saveID = 10000 + g.goalNo;
-                    else if (result.status === '中止') saveID = 20000 + g.goalNo;
-                    const newGoalString = `${result.goal} (Cat:${result.category}, 1st:${result.step})`;
-                    await fetchGAS('POST', { action: 'saveData', date: getFormattedDate(), userID: State.userID, userName: State.userName, goalNo: saveID, goal: newGoalString });
-                    customAlert('更新しました！✨'); await fetchUserData(); ren();
-                };
-            }
-            const recBtn = t.querySelector('[data-action="start-record"]');
-            if (recBtn) { if (currentTab === 'history') { recBtn.classList.add('hidden'); } else { recBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); navigateTo('record', {goal:g}); }; } }
-            lst.appendChild(t);
         });
     };
+
+    const handleChangeStatus = async (goalObj, statusLabel, offsetID) => {
+        let msg = '';
+        if (statusLabel === '削除') { msg = `<span class="text-red-600 font-bold">本当に削除しますか？</span><br>画面から消えますが、データは研究用に保存されます。`; } 
+        else if (statusLabel === '再開') { msg = `「${getGoalMainText(goalObj.goal)}」を再開しますか？<br>意気込みを一言どうぞ！`; } 
+        else { msg = `${statusLabel}の理由や、今の気持ちを一言どうぞ：`; }
+
+        const reason = await customPrompt(msg);
+        if (reason === null) return; 
+
+        if(checkCrisisKeywords(reason)) return;
+
+        const saveID = offsetID + goalObj.goalNo;
+        await fetchGAS('POST', { 
+            action: 'saveData', 
+            date: getFormattedDate(), 
+            userID: State.userID, 
+            userName: State.userName, 
+            goalNo: saveID, 
+            goal: goalObj.goal, 
+            reasonU: reason 
+        });
+        
+        let doneMsg = '更新しました ✨';
+        if (statusLabel === '削除') doneMsg = '削除しました 🗑️';
+        if (statusLabel === '再開') doneMsg = 'おかえりなさい！再開しました 🚀';
+        
+        customAlert(doneMsg); await fetchUserData(); ren();
+    };
+
     const addBtn = document.getElementById('add-goal-button');
     if(addBtn) {
         addBtn.onclick = async() => {
-            const modalPromise = showModal({ title:'目標登録', showInput:true, inputType:'goal-form', showCancel:true });
+            const modalPromise = showModal({ title:'目標登録', showInput:true, inputType:'goal-form', showCancel:true, isGoalEdit: false });
             
-            // ★目標相談ボタンの挿入処理
             setTimeout(() => {
                 const formArea = document.getElementById('modal-goal-form');
                 const uidStr = State.userID.toString();
                 const isControl = uidStr.startsWith('26') && uidStr.length === 6;
-                
                 if(formArea && !document.getElementById('ai-consult-btn') && !isControl) {
                     const btn = document.createElement('button');
                     btn.id = 'ai-consult-btn';
                     btn.className = "w-full mb-4 py-2 bg-emerald-100 text-emerald-700 font-bold rounded-lg hover:bg-emerald-200 transition flex items-center justify-center gap-2";
                     btn.innerHTML = "<span>🤖</span> ライフロと相談して決める";
-                    
                     btn.onclick = (e) => {
                         e.preventDefault();
-                        const mMain = document.getElementById('goal-input-main');
-                        const mCat = document.getElementById('goal-input-category');
-                        const mStep = document.getElementById('goal-input-step');
-                        startGoalConsultation({ main: mMain, cat: mCat, step: mStep });
+                        customAlert('目標相談機能は開発中です。フォームに直接入力してください。');
                     };
-                    
-                    formArea.parentNode.insertBefore(btn, formArea);
+                    const inputFormContainer = document.getElementById('modal-goal-form').parentNode;
+                    inputFormContainer.insertBefore(btn, document.getElementById('modal-goal-form'));
                 }
             }, 50);
 
             const i = await modalPromise;
             if(!i) return;
+
+            const checkText = `${i.goal} ${i.step}`;
+            if(checkCrisisKeywords(checkText)) return;
+
             const fg = `${i.goal} (Cat:${i.category}, 1st:${i.step})`;
             await fetchGAS('POST', { action:'saveData', date:getFormattedDate(), userID:State.userID, userName:State.userName, goalNo:State.nextGoalNo, goal:fg });
             customAlert('登録しました'); await fetchUserData(); ren();
@@ -615,18 +882,29 @@ function initGoals() {
     }
     const backBtn = document.querySelector('.back-button');
     if(backBtn) backBtn.onclick = () => navigateTo('top');
-    ren();
+    // initGoalsの最後にレンダリングを実行
+    if (tabActive) switchTab('active'); 
+    else ren(); // タブがない場合は直接レンダリング
 }
 
 function initRecord() {
-    if(!State.selectedGoal && State.activeGoals.length>0) State.selectedGoal=State.activeGoals[0];
+    const activeGoalsOnly = State.activeGoals.filter(g => !g.status); 
+
+    if(activeGoalsOnly.length === 0){
+        customAlert('記録できる進行中の目標がありません。目標管理画面で新しい目標を登録するか、履歴から目標を「再開」してください。');
+        navigateTo('goals');
+        return;
+    }
+    
+    if(!State.selectedGoal || State.selectedGoal.status) State.selectedGoal = activeGoalsOnly[0];
     const sel = document.getElementById('record-goal-select');
-    sel.innerHTML = State.activeGoals.map(g => `<option value="${g.goalNo}" ${State.selectedGoal?.goalNo==g.goalNo?'selected':''}>#${g.goalNo} ${getGoalMainText(g.goal).substr(0,20)}...</option>`).join('');
+    sel.innerHTML = activeGoalsOnly.map(g => `<option value="${g.goalNo}" ${State.selectedGoal?.goalNo==g.goalNo?'selected':''}>#${g.goalNo} ${getGoalMainText(g.goal).substr(0,20)}...</option>`).join('');
+    
     sel.onchange = (e) => {
-        const g = State.activeGoals.find(item => item.goalNo == e.target.value);
+        const g = activeGoalsOnly.find(item => item.goalNo == e.target.value);
         if (g) { State.currentChat = []; State.recordData = null; State.pendingData = null; navigateTo('record', {goal: g}); }
     };
-
+    
     const uidStr = State.userID.toString();
     const isControl = uidStr.startsWith('26') && uidStr.length === 6;
 
@@ -703,6 +981,14 @@ function initRecord() {
         const s = document.querySelector('input[name="skillU"]:checked')?.value;
         const r = document.getElementById('reasonU').value;
         if(!c || !s){ customAlert('評価を選択してください'); return; }
+
+        const combinedText = `${getGoalMainText(State.selectedGoal.goal)} ${r}`;
+        const resetBtn = () => {
+             initBtn.disabled = false;
+             initBtn.textContent = isControl ? '記録を送信する 📤' : '記録してライフロと相談する 🚀';
+        };
+
+        if(checkCrisisKeywords(combinedText, resetBtn)) return; 
         
         initBtn.disabled=true; 
         initBtn.textContent = isControl ? '送信中...' : 'ライフロAI思考中...';
@@ -722,6 +1008,10 @@ function initRecord() {
     sendBtn.onclick = async() => {
         const txt = chatInput.value.trim();
         if(!txt) return;
+        
+        const resetBtn = () => { sendBtn.disabled = false; sendBtn.textContent = '送信'; };
+        if(checkCrisisKeywords(txt, resetBtn)) return;
+
         chatInput.value='';
         sendBtn.disabled=true; sendBtn.textContent='...';
         
@@ -756,9 +1046,21 @@ function initReview() {
     const sel = document.getElementById('review-goal-selector');
     const box = document.getElementById('record-details-container');
     const tit = document.getElementById('chart-title');
-    const reviewableGoals = State.activeGoals.filter(g => State.userRecords.some(r => r.goalNo==g.goalNo && r.challengeU));
+    
+    // 振り返り対象の目標: 削除フラグがない目標すべて（進行中、達成、中止）
+    const reviewableGoals = State.activeGoals.filter(g => 
+        g.status !== '削除' && State.userRecords.some(r => r.goalNo == g.goalNo && r.challengeU)
+    );
+
     if(reviewableGoals.length===0){ box.innerHTML='<p class="text-gray-500 p-4">記録なし</p>'; return; }
-    sel.innerHTML = reviewableGoals.map(g => `<option value="${g.goalNo}">#${g.goalNo} ${getGoalMainText(g.goal).substr(0,15)}...</option>`).join('');
+    
+    // 選択リストの表示
+    sel.innerHTML = reviewableGoals.map(g => {
+        let prefix = '';
+        if (g.status === '達成') prefix = '🏆 ';
+        else if (g.status === '中止') prefix = '⏹️ ';
+        return `<option value="${g.goalNo}">${prefix}#${g.goalNo} ${getGoalMainText(g.goal).substr(0,15)}...</option>`;
+    }).join('');
     
     const uidStr = State.userID.toString();
     const isControl = uidStr.startsWith('26') && uidStr.length === 6;
@@ -769,7 +1071,10 @@ function initReview() {
     }
 
     const load = (gn) => {
-        const recs = State.userRecords.filter(r => r.goalNo==gn && r.challengeU).sort((a,b)=>new Date(a.date)-new Date(b.date));
+        const recs = State.userRecords.filter(r => 
+            r.goalNo == gn && r.challengeU
+        ).sort((a,b)=>new Date(a.date)-new Date(b.date));
+        
         const goalName = reviewableGoals.find(t=>t.goalNo==gn)?.goal||'';
         if(tit) tit.textContent = `${getGoalMainText(goalName)} のCSバランス推移`;
         const ctx = document.getElementById('flowChart').getContext('2d');
@@ -829,7 +1134,11 @@ function initReview() {
 
 function initTheoryPage() { appDiv.querySelector('.back-button').addEventListener('click', () => navigateTo('top')); }
 
-window.onload = function() { render(); };
+window.onload = function() { 
+    // ★onload時にデータ取得と描画をチェーンで実行 (初期化の安定化)
+    fetchUserData().then(() => render()); 
+};
+
 appDiv.addEventListener('click', (e) => {
     const t = e.target.closest('[data-action]');
     if (t && !t.getAttribute('onclick')) navigateTo(t.dataset.action);
