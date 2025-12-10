@@ -1,6 +1,6 @@
 /**
  * LIFLO-AI Application Script
- * Final Stable Version: Goals List Fix, Crisis Management, Full UI Consolidation
+ * Final Fix 3: Top Layout Restoration & Goal UI Consolidation
  */
 
 const LOGO_DATA = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PC9zdmc+";
@@ -62,24 +62,21 @@ function showModal({ title, message = '', showInput = false, inputType = 'defaul
             if(inputType==='default'){ iCon.classList.remove('hidden'); iEl.placeholder=placeholder; }
             else if(inputType==='goal-form') {
                 gForm.classList.remove('hidden');
-                
-                const statusSelectContainer = document.getElementById('modal-goal-form').querySelector('div:last-child');
-                
                 if (isGoalEdit && currentGoal.goal) {
                     // 目標編集フォームの初期値設定
                     setTimeout(() => {
                         document.getElementById('goal-input-main').value = getGoalMainText(currentGoal.goal);
+                        // カテゴリとステップは、目標文字列から解析して設定する必要があるが、ここでは省略しつつ、編集モーダルのために初期値を設定
                         const catMatch = currentGoal.goal.match(/Cat:(.*?)(?:,|,\s|\)|$)/);
                         const stepMatch = currentGoal.goal.match(/1st:(.*?)(?:,|,\s|\)|$)/);
                         if (catMatch) document.getElementById('goal-input-category').value = catMatch[1].trim();
                         if (stepMatch) document.getElementById('goal-input-step').value = stepMatch[1].trim();
-                        document.getElementById('goal-input-status').value = currentGoal.status || ''; 
+                        document.getElementById('goal-input-status').value = currentGoal.status || ''; // ステータスも設定
                     }, 50);
-                    // 編集時はステータス選択セレクトを表示
-                    if (statusSelectContainer) statusSelectContainer.style.display = 'block';
                 } else if (!isGoalEdit) {
-                    // 目標登録時はステータス変更セレクトを非表示
-                    if (statusSelectContainer) statusSelectContainer.style.display = 'none';
+                    // 目標登録フォームではステータス変更セレクトを非表示にする
+                    const statusSelect = document.getElementById('modal-goal-form').querySelector('div:last-child');
+                    if (statusSelect) statusSelect.style.display = 'none';
                 }
             }
         }
@@ -462,6 +459,7 @@ function initLogin() {
     const termsContainer = document.getElementById('terms-container');
     const termsCheck = document.getElementById('terms-check');
 
+    // 初回のみ表示ロジック
     if (termsContainer && localStorage.getItem('LIFLO_TERMS_AGREED') === 'true') {
         termsContainer.style.display = 'none';
         if(termsCheck) termsCheck.checked = true; 
@@ -474,6 +472,7 @@ function initLogin() {
         const nm = userNameInput.value.trim();
         if(!uid || !nm){ customAlert('ニックネームと認証番号(ID)を入力してください'); return; }
         
+        // 新規登録時は同意チェック必須
         if (act === 'register' && termsCheck && !termsCheck.checked) {
             customAlert('利用を開始するには、免責事項への同意が必要です。');
             return;
@@ -492,6 +491,7 @@ function initLogin() {
         try {
             const r = await fetchGAS('POST', { action:act, userID:uid, userName:nm });
             if(r.status === 'success'){
+                // 成功時に同意フラグを記録
                 if (termsCheck && termsCheck.checked) {
                     localStorage.setItem('LIFLO_TERMS_AGREED', 'true');
                 }
@@ -509,6 +509,7 @@ function initLogin() {
         }
     };
 
+    // ログインと新規登録のイベント設定
     if (loginForm) { loginForm.addEventListener('submit', (e) => { e.preventDefault(); auth('auth'); }); }
     else if(loginBtn) { loginBtn.onclick = (e) => { e.preventDefault(); auth('auth'); }; }
     
@@ -591,7 +592,7 @@ function initGoals() {
     const tabHistory = document.getElementById('tab-history');
     
     if(!tabActive || !tabHistory) {
-         // Tabs not found
+         // Tabs not found (using default)
     } else {
         const baseTabClass = "flex-1 px-4 py-3 text-sm font-bold transition-colors text-center cursor-pointer";
         const activeStyle = "text-emerald-600 border-b-4 border-emerald-600 bg-white";
@@ -611,6 +612,7 @@ function initGoals() {
         };
         tabActive.onclick = () => switchTab('active'); 
         tabHistory.onclick = () => switchTab('history');
+        // 初期状態をセット
         switchTab('active');
     }
 
@@ -637,33 +639,23 @@ function initGoals() {
             const stepMatch = fullTitle.match(/1st:(.*?)(?:,|,\s|\)|$)/);
             const category = catMatch ? catMatch[1].trim() : '';
             const step = stepMatch ? stepMatch[1].trim() : '';
-            
-            // ★目標カード内の要素を安全に取得
             const titleEl = t.querySelector('[data-field="goal-title"]');
             const cardContainer = t.querySelector('.goal-card');
-            const catTag = t.querySelector('[data-field="goal-cat-tag"]');
-            const dateTag = t.querySelector('[data-field="goal-date-tag"]');
-            const stepEl = t.querySelector('[data-field="goal-step"]');
-            const stepText = t.querySelector('.goal-step-text');
-            const btnContainer = t.querySelector('.button-container');
-
 
             if(currentTab === 'history') {
                 if (g.status === '達成') {
                     cardContainer.classList.add('bg-yellow-50', 'border-yellow-200');
-                    if (titleEl) titleEl.innerHTML = `<span class="text-yellow-600 mr-1">🏆 達成</span> ${titleOnly}`;
+                    titleEl.innerHTML = `<span class="text-yellow-600 mr-1">🏆 達成</span> ${titleOnly}`;
                 } else if (g.status === '中止') {
                     cardContainer.classList.add('bg-gray-100', 'border-gray-200');
-                    if (titleEl) {
-                        titleEl.classList.add('text-gray-500');
-                        titleEl.innerHTML = `<span class="text-gray-400 mr-1">⏹️ 中止</span> <span class="line-through">${titleOnly}</span>`;
-                    }
+                    titleEl.classList.add('text-gray-500');
+                    titleEl.innerHTML = `<span class="text-gray-400 mr-1">⏹️ 中止</span> <span class="line-through">${titleOnly}</span>`;
                 }
             } else {
-                if (titleEl) titleEl.textContent = `[#${g.goalNo}] ${titleOnly}`;
+                titleEl.textContent = `[#${g.goalNo}] ${titleOnly}`;
             }
 
-            // カテゴリタグ
+            const catTag = t.querySelector('[data-field="goal-cat-tag"]');
             if (category && catTag) {
                 let colorClass = 'bg-purple-50 text-purple-700 border-purple-200'; let icon = '📂';
                 if (category.includes('仕事') || category.includes('キャリア')) { colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-200'; icon = '💼'; }
@@ -676,7 +668,7 @@ function initGoals() {
                 if(g.status === '中止') catTag.className = `inline-flex items-center text-xs font-bold px-2 py-1 rounded border bg-gray-200 text-gray-500 border-gray-300`;
             }
 
-            // 日付表示
+            const dateTag = t.querySelector('[data-field="goal-date-tag"]');
             if (g.startDate && dateTag) {
                 const startStr = formatDateForDisplay(g.startDate).split(' ')[0];
                 if (currentTab === 'history') { 
@@ -688,14 +680,16 @@ function initGoals() {
                 dateTag.classList.remove('hidden');
             }
 
-            // 最初の一歩表示
+            const stepEl = t.querySelector('[data-field="goal-step"]');
+            const stepText = t.querySelector('.goal-step-text');
             if (step && stepEl && stepText) { 
                 stepText.textContent = step; 
                 stepEl.classList.remove('hidden');
                 if(g.status === '中止') stepEl.classList.add('opacity-50');
             }
 
-            // --- ボタン生成エリア ---
+            // --- ボタン生成エリア (class="button-container") ---
+            const btnContainer = t.querySelector('.button-container');
             if(btnContainer) {
                 btnContainer.innerHTML = '';
                 
@@ -709,9 +703,9 @@ function initGoals() {
                     if(checkCrisisKeywords(checkText)) return;
 
                     let currentStatusOffset = 0;
-                    if(result.status === '達成') currentStatusOffset = 10000;
-                    else if(result.status === '中止') currentStatusOffset = 20000;
-
+                    if(g.status === '達成') currentStatusOffset = 10000;
+                    if(g.status === '中止') currentStatusOffset = 20000;
+                    
                     const saveID = currentStatusOffset + g.goalNo;
                     const newGoalString = `${result.goal} (Cat:${result.category}, 1st:${result.step})`;
                     
@@ -719,29 +713,14 @@ function initGoals() {
                     customAlert('更新しました！✨'); await fetchUserData(); ren();
                 };
 
-                // ヘルパー関数
-                const createBtn = (text, colorClass, onClick, isGrow = false) => {
-                    const b = document.createElement('button');
-                    b.className = `py-2 px-3 text-sm rounded-lg font-bold ${colorClass} ${isGrow ? 'flex-grow' : ''}`;
-                    b.textContent = text;
-                    b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); onClick(); };
-                    return b;
-                };
-                const createIconBtn = (icon, colorClass, onClick) => {
-                    const b = document.createElement('button');
-                    b.className = `p-3 text-sm rounded-lg font-bold ${colorClass} flex items-center justify-center`;
-                    b.textContent = icon;
-                    b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); onClick(); };
-                    return b;
-                };
 
                 if (currentTab === 'active') {
                     // 進行中タブのボタン
                     const recBtn = createBtn("今日の記録 ✍️", "bg-teal-100 text-teal-700 hover:bg-teal-200", () => navigateTo('record', {goal:g}), true);
                     const achBtn = createBtn("達成 🎉", "bg-yellow-100 text-yellow-700 hover:bg-yellow-200", () => handleChangeStatus(g, '達成', 10000));
                     const stpBtn = createBtn("中止 ⏹️", "bg-gray-100 text-gray-700 hover:bg-gray-200", () => handleChangeStatus(g, '中止', 20000));
-                    const delBtn = createIconBtn("🗑️", "bg-red-100 text-red-700 hover:bg-red-200", () => handleChangeStatus(g, '削除', 30000));
-                    const editBtn = createIconBtn("✏️", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", handleEdit); 
+                    const delBtn = createBtn("🗑️", "bg-red-100 text-red-700 hover:bg-red-200", () => handleChangeStatus(g, '削除', 30000));
+                    const editBtn = createIconBtn("✏️", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", handleEdit);
 
                     btnContainer.append(recBtn, achBtn, stpBtn, delBtn, editBtn);
                 
@@ -749,7 +728,7 @@ function initGoals() {
                     // 履歴タブのボタン
                     const restoreBtn = createBtn("再開する 🔄", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", () => handleChangeStatus(g, '再開', 0), true);
                     const delBtn = createBtn("完全に削除 🗑️", "bg-red-100 text-red-700 hover:bg-red-200", () => handleChangeStatus(g, '削除', 30000));
-                    const editBtn = createIconBtn("✏️", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", handleEdit); 
+                    const editBtn = createIconBtn("✏️", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", handleEdit);
 
                     btnContainer.append(restoreBtn, delBtn, editBtn);
                 }
@@ -757,6 +736,23 @@ function initGoals() {
             lst.appendChild(t);
         });
     };
+
+    // ボタン作成ヘルパー
+    const createBtn = (text, colorClass, onClick, isGrow = false) => {
+        const b = document.createElement('button');
+        b.className = `py-2 px-3 text-sm rounded-lg font-bold ${colorClass} ${isGrow ? 'flex-grow' : ''}`;
+        b.textContent = text;
+        b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); onClick(); };
+        return b;
+    };
+    const createIconBtn = (icon, colorClass, onClick) => {
+        const b = document.createElement('button');
+        b.className = `p-3 text-sm rounded-lg font-bold ${colorClass}`;
+        b.textContent = icon;
+        b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); onClick(); };
+        return b;
+    };
+
 
     const handleChangeStatus = async (goalObj, statusLabel, offsetID) => {
         let msg = '';
@@ -790,7 +786,7 @@ function initGoals() {
     const addBtn = document.getElementById('add-goal-button');
     if(addBtn) {
         addBtn.onclick = async() => {
-            const modalPromise = showModal({ title:'目標登録', showInput:true, inputType:'goal-form', showCancel:true, isGoalEdit: false });
+            const modalPromise = showModal({ title:'目標登録', showInput:true, inputType:'goal-form', showCancel:true });
             
             setTimeout(() => {
                 const formArea = document.getElementById('modal-goal-form');
@@ -803,8 +799,14 @@ function initGoals() {
                     btn.innerHTML = "<span>🤖</span> ライフロと相談して決める";
                     btn.onclick = (e) => {
                         e.preventDefault();
+                        // モーダルが閉じてしまうので、カスタムモーダルテンプレートで対応が必要だが、現状のコードではこのように実装
                         customAlert('目標相談機能は開発中です。フォームに直接入力してください。');
+                        // const mMain = document.getElementById('goal-input-main');
+                        // const mCat = document.getElementById('goal-input-category');
+                        // const mStep = document.getElementById('goal-input-step');
+                        // startGoalConsultation({ main: mMain, cat: mCat, step: mStep });
                     };
+                    // フォーム表示前にボタンを挿入
                     const inputFormContainer = document.getElementById('modal-goal-form').parentNode;
                     inputFormContainer.insertBefore(btn, document.getElementById('modal-goal-form'));
                 }
@@ -823,7 +825,7 @@ function initGoals() {
     }
     const backBtn = document.querySelector('.back-button');
     if(backBtn) backBtn.onclick = () => navigateTo('top');
-    switchTab('active');
+    ren();
 }
 
 function initRecord() {
@@ -977,7 +979,7 @@ function initReview() {
     
     // 振り返り対象の目標: 削除フラグがない目標すべて（進行中、達成、中止）
     const reviewableGoals = State.activeGoals.filter(g => 
-        g.status !== '削除' && State.userRecords.some(r => r.goalNo == g.goalNo && r.challengeU)
+        g.status !== '削除' && State.userRecords.some(r => r.goalNo==g.goalNo && r.challengeU)
     );
 
     if(reviewableGoals.length===0){ box.innerHTML='<p class="text-gray-500 p-4">記録なし</p>'; return; }
