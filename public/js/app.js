@@ -1,6 +1,6 @@
 /**
  * LIFLO-AI Application Script
- * Update: Goal Consultation Fix (Avoid loop & Update placeholder)
+ * Full Version: Includes Crisis Management, ToS Logic, and Control Group Logic
  */
 
 const LOGO_DATA = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PC9zdmc+";
@@ -117,6 +117,47 @@ function extractLLMData(txt) {
     return { text: c, data: null };
 }
 
+// --- Crisis Management Logic ---
+function checkCrisisKeywords(text, uiCallback) {
+    const dangerKeywords = [
+        // 自傷・自殺関連
+        '死にたい', '消えたい', '自殺', '死ぬ', '逝きたい',
+        // 他害・暴力・殺意
+        '殺したい', '殺す', '刺す', '殴る', '復讐',
+        // 攻撃・犯罪・ハラスメント
+        '陥れる', '許さない', '破滅', '死ね', 'おとしいれる'
+    ];
+
+    if (dangerKeywords.some(word => text.includes(word))) {
+        const warningHtml = `
+            <div class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 shadow-sm">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-2xl">⚠️</span>
+                    <span class="font-bold text-lg">AIからのメッセージ</span>
+                </div>
+                <p class="text-sm font-bold mb-2">
+                    入力された内容には、AIが適切に対応できない、または利用規約に抵触する可能性のある表現が含まれています。
+                </p>
+                <p class="text-sm mb-3">
+                    強いストレスや悩み、またはトラブルを抱えている場合は、AIではなく専門の相談機関や窓口をご利用ください。
+                </p>
+                <div class="bg-white p-3 rounded border border-red-100 text-xs text-gray-600">
+                    <strong>相談窓口のご案内:</strong>
+                    <ul class="list-disc ml-5 mt-1 space-y-1">
+                        <li><a href="https://www.inochinodenwa.org/" target="_blank" class="underline text-blue-600">いのちの電話（悩み相談）</a></li>
+                        <li><a href="https://www.houterasu.or.jp/" target="_blank" class="underline text-blue-600">法テラス（法的トラブル）</a></li>
+                        <li><a href="https://www.mhlw.go.jp/mamorouyokokoro/" target="_blank" class="underline text-blue-600">まもろうよこころ（厚労省）</a></li>
+                    </ul>
+                </div>
+            </div>
+        `;
+        addChatMessage(warningHtml, 'bot');
+        if (uiCallback) uiCallback(); // ボタンの状態を戻す等の処理
+        return true; // 危険ワードあり
+    }
+    return false; // 問題なし
+}
+
 // --- 1. Main LLM Logic (OT Record & Review) ---
 
 async function fetchLLM(prompt) {
@@ -190,7 +231,7 @@ async function fetchLLM(prompt) {
     }
 }
 
-// --- 2. Goal Consultation LLM Logic (Improved Flow & Suggestion) ---
+// --- 2. Goal Consultation LLM Logic ---
 
 async function fetchGoalConsultLLM(history, userInput) {
     const sys = `
@@ -264,9 +305,7 @@ async function startGoalConsultation(targetInputs) {
     const sendBtn = clone.getElementById('consult-send');
     const closeBtn = clone.getElementById('consult-close');
 
-    // ★修正点: プレースホルダーの文言変更
     input.placeholder = "ここに書き込んでみましょう！✍️";
-
     document.body.appendChild(backdrop);
 
     let chatHistory = []; 
@@ -274,30 +313,16 @@ async function startGoalConsultation(targetInputs) {
     const addMsg = (text, isUser) => {
         const div = document.createElement('div');
         div.className = `flex w-full ${isUser ? 'justify-end' : 'justify-start'}`;
-        
         const icon = !isUser ? `<div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 shadow border border-gray-200 mr-2"><img src="${SMALL_ICON_URL}" class="w-4/5 h-4/5 object-contain"></div>` : '';
-        
-        div.innerHTML = `
-            ${icon}
-            <div class="max-w-[85%] p-3 rounded-lg text-sm shadow-sm ${isUser ? 'bg-emerald-100 text-gray-800' : 'bg-white border border-gray-200 text-gray-800'}">
-                ${text.replace(/\n/g, '<br>')}
-            </div>
-        `;
+        div.innerHTML = `${icon}<div class="max-w-[85%] p-3 rounded-lg text-sm shadow-sm ${isUser ? 'bg-emerald-100 text-gray-800' : 'bg-white border border-gray-200 text-gray-800'}">${text.replace(/\n/g, '<br>')}</div>`;
         logArea.appendChild(div);
         logArea.scrollTop = logArea.scrollHeight;
-        
         if(!isUser && text) chatHistory.push({role: 'bot', text: text});
     };
 
-    // ランダムな挨拶例
     const examples = [
-        "「英語を話せるようになりたい」",
-        "「毎朝ウォーキングしたい」",
-        "「資格の勉強を始めたい」",
-        "「もっと本を読みたい」",
-        "「節約して貯金したい」",
-        "「野菜中心の生活にしたい」",
-        "「部屋の片付けを習慣にしたい」"
+        "「英語を話せるようになりたい」", "「毎朝ウォーキングしたい」", "「資格の勉強を始めたい」",
+        "「もっと本を読みたい」", "「節約して貯金したい」", "「野菜中心の生活にしたい」", "「部屋の片付けを習慣にしたい」"
     ];
     const shuffled = examples.sort(() => 0.5 - Math.random());
     const ex1 = shuffled[0];
@@ -309,9 +334,7 @@ async function startGoalConsultation(targetInputs) {
         const txt = input.value.trim();
         if(!txt) return;
         input.value = '';
-        
         addMsg(txt, true);
-        
         sendBtn.disabled = true; sendBtn.textContent = '...';
         
         const resRaw = await fetchGoalConsultLLM(chatHistory, txt);
@@ -320,10 +343,8 @@ async function startGoalConsultation(targetInputs) {
         if(text) addMsg(text, false);
 
         if(data) {
-            // JSONが来たら完了処理
             setTimeout(async () => {
                 document.body.removeChild(backdrop);
-
                 await customAlert(`
                     <div class="text-center">
                         <p class="font-bold text-emerald-600 mb-2">この目標で登録しますか？✨</p>
@@ -335,16 +356,13 @@ async function startGoalConsultation(targetInputs) {
                         <p class="text-xs text-gray-500 mt-3">OKを押すとフォームに自動入力されます。</p>
                     </div>
                 `);
-                
                 if(targetInputs.main) targetInputs.main.value = data.goal;
                 if(targetInputs.cat) targetInputs.cat.value = data.category;
                 if(targetInputs.step) targetInputs.step.value = data.step;
-                
             }, 800);
         } else {
             chatHistory.push({role: 'user', text: txt});
         }
-        
         sendBtn.disabled = false; sendBtn.textContent = '送信';
         input.focus();
     };
@@ -413,29 +431,62 @@ function initLogin() {
     const regBtn = document.getElementById('register-button');
     const userIdInput = document.getElementById('userID');
     const userNameInput = document.getElementById('userName');
+    
+    // 免責事項の制御要素
+    const termsContainer = document.getElementById('terms-container');
+    const termsCheck = document.getElementById('terms-check');
+
+    // ★以前に同意済みなら免責事項エリアを非表示にする
+    if (termsContainer && localStorage.getItem('LIFLO_TERMS_AGREED') === 'true') {
+        termsContainer.style.display = 'none';
+        if(termsCheck) termsCheck.checked = true; // 内部的にチェック済みにする
+    }
+
     if (!userIdInput || !userNameInput) { customAlert('【システムエラー】\nHTML内の入力欄が見つかりません。'); return; }
+    
     const auth = async(act) => {
         let uid = userIdInput.value.trim();
         const nm = userNameInput.value.trim();
         if(!uid || !nm){ customAlert('ニックネームと認証番号(ID)を入力してください'); return; }
+        
+        // ★新規登録の場合はチェック必須。ログインの場合は過去に同意済みならチェック不要（見なし）
+        if (act === 'register' && termsCheck && !termsCheck.checked) {
+            customAlert('利用を開始するには、免責事項への同意が必要です。');
+            return;
+        }
+
         uid = parseInt(uid, 10).toString();
-        if(loginBtn) { loginBtn.textContent = '読み込み中... 🔄'; loginBtn.disabled = true; loginBtn.classList.add('opacity-70', 'cursor-not-allowed'); }
+        const targetBtn = act === 'auth' ? loginBtn : regBtn;
+        const originalText = targetBtn ? targetBtn.textContent : '';
+
+        if(targetBtn) { 
+            targetBtn.textContent = '通信中... 🔄'; 
+            targetBtn.disabled = true; 
+            targetBtn.classList.add('opacity-70', 'cursor-not-allowed'); 
+        }
+
         try {
             const r = await fetchGAS('POST', { action:act, userID:uid, userName:nm });
             if(r.status === 'success'){
+                // ★成功したら「同意済み」を記録する
+                if (termsCheck && termsCheck.checked) {
+                    localStorage.setItem('LIFLO_TERMS_AGREED', 'true');
+                }
+
                 State.userID = uid; State.userName = nm;
-                if(loginBtn) loginBtn.textContent = '成功！ 🎉';
+                if(targetBtn) targetBtn.textContent = '成功！ 🎉';
                 await customAlert(`<div class="text-center"><div class="flex justify-center mb-2"><img src="https://i.gyazo.com/611879904819fa76fa1d05bc9f6ce711.png" alt="Success" class="w-40 object-contain"></div><p class="font-bold text-lg">ログインしました！</p></div>`);
                 await fetchUserData(); navigateTo('top');
             } else {
                 customAlert(`ログイン失敗 😓 \n${r.message || 'IDまたはニックネームを確認してください'}`);
-                if(loginBtn) { loginBtn.textContent = 'ログイン 👋'; loginBtn.disabled = false; loginBtn.classList.remove('opacity-70', 'cursor-not-allowed'); }
+                if(targetBtn) { targetBtn.textContent = originalText; targetBtn.disabled = false; targetBtn.classList.remove('opacity-70', 'cursor-not-allowed'); }
             }
         } catch (error) {
             console.error(error); customAlert(`エラーが発生しました:\n${error.message}`);
-            if(loginBtn) { loginBtn.textContent = 'ログイン 👋'; loginBtn.disabled = false; loginBtn.classList.remove('opacity-70', 'cursor-not-allowed'); }
+            if(targetBtn) { targetBtn.textContent = originalText; targetBtn.disabled = false; targetBtn.classList.remove('opacity-70', 'cursor-not-allowed'); }
         }
     };
+
     if (loginForm) { loginForm.addEventListener('submit', (e) => { e.preventDefault(); auth('auth'); }); }
     else if(loginBtn) { loginBtn.onclick = (e) => { e.preventDefault(); auth('auth'); }; }
     
@@ -581,19 +632,15 @@ function initGoals() {
     if(addBtn) {
         addBtn.onclick = async() => {
             const modalPromise = showModal({ title:'目標登録', showInput:true, inputType:'goal-form', showCancel:true });
-            
-            // ★目標相談ボタンの挿入処理
             setTimeout(() => {
                 const formArea = document.getElementById('modal-goal-form');
                 const uidStr = State.userID.toString();
                 const isControl = uidStr.startsWith('26') && uidStr.length === 6;
-                
                 if(formArea && !document.getElementById('ai-consult-btn') && !isControl) {
                     const btn = document.createElement('button');
                     btn.id = 'ai-consult-btn';
                     btn.className = "w-full mb-4 py-2 bg-emerald-100 text-emerald-700 font-bold rounded-lg hover:bg-emerald-200 transition flex items-center justify-center gap-2";
                     btn.innerHTML = "<span>🤖</span> ライフロと相談して決める";
-                    
                     btn.onclick = (e) => {
                         e.preventDefault();
                         const mMain = document.getElementById('goal-input-main');
@@ -601,11 +648,9 @@ function initGoals() {
                         const mStep = document.getElementById('goal-input-step');
                         startGoalConsultation({ main: mMain, cat: mCat, step: mStep });
                     };
-                    
                     formArea.parentNode.insertBefore(btn, formArea);
                 }
             }, 50);
-
             const i = await modalPromise;
             if(!i) return;
             const fg = `${i.goal} (Cat:${i.category}, 1st:${i.step})`;
@@ -658,7 +703,6 @@ function initRecord() {
         initBtn.textContent = '記録してライフロと相談する 🚀';
     }
 
-    // --- Updated: Display Control Logic ---
     const handleAIResponse = (raw, isFollowUp = false) => {
         const { text, data } = extractLLMData(raw);
         let firstMsgElement = null;
@@ -671,29 +715,21 @@ function initRecord() {
             const guide = document.getElementById('save-recommend-text');
             if(guide) guide.style.display = 'none';
         } else {
-            // 1. Text (Conversation): Always show, clean Markdown
             if(text) { 
                 const cleanText = text.replace(/\*\*/g, '').replace(/__/g, '').replace(/\n/g, '<br>');
                 firstMsgElement = addChatMessage(cleanText, 'bot'); 
             }
-
-            // 2. Data: Always update state, selectively show bubbles
             if(data){
-                State.pendingData = data; // Keep latest data for saving
-
-                // Show Analysis Bubble ONLY if NOT follow-up (First turn only)
+                State.pendingData = data; 
                 if (!isFollowUp) {
                     const analysisHtml = `<div class="border-b border-blue-200 pb-2 mb-2"><div class="font-bold text-orange-600"> 📊 ライフロの見立て (挑戦${data.challengeAI}/能力${data.skillAI})</div><div class="font-bold text-blue-600 mt-1"> 🤔 ライフロの分析</div></div><div class="text-gray-700">${data.reasonAI}</div>`;
                     const analysisMsg = addChatMessage(analysisHtml, 'bot', 'analysis');
                     if (!firstMsgElement) firstMsgElement = analysisMsg;
                 }
-
-                // Show Regoal Bubble ALWAYS (It updates with conversation)
                 const goalHtml = `<div class="font-bold text-green-600 mb-1 border-b border-green-200 pb-1"> 🚩 今後の目標／課題</div>${data.regoalAI}`;
                 addChatMessage(goalHtml, 'bot', 'regoal');
             }
         }
-        
         if (firstMsgElement) { firstMsgElement.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     };
     
@@ -703,6 +739,15 @@ function initRecord() {
         const s = document.querySelector('input[name="skillU"]:checked')?.value;
         const r = document.getElementById('reasonU').value;
         if(!c || !s){ customAlert('評価を選択してください'); return; }
+
+        // ★クライシス・マネジメント機能のチェック
+        const combinedText = `${getGoalMainText(State.selectedGoal.goal)} ${r}`;
+        const resetBtn = () => {
+             initBtn.disabled = false;
+             initBtn.textContent = isControl ? '記録を送信する 📤' : '記録してライフロと相談する 🚀';
+        };
+
+        if(checkCrisisKeywords(combinedText, resetBtn)) return; // 危険ワードがあれば中断
         
         initBtn.disabled=true; 
         initBtn.textContent = isControl ? '送信中...' : 'ライフロAI思考中...';
@@ -711,7 +756,6 @@ function initRecord() {
         const p = `目標: ${getGoalMainText(State.selectedGoal.goal)}\n自己評価: 挑戦${c}/能力${s}\n理由: ${r}`;
         addChatMessage(p.replace(/\n/g, '<br>'), 'user');
         
-        // Pass false for first turn
         const res = await fetchLLM(p);
         handleAIResponse(res, false);
         
@@ -722,13 +766,20 @@ function initRecord() {
     sendBtn.onclick = async() => {
         const txt = chatInput.value.trim();
         if(!txt) return;
+        
+        // ★クライシス・マネジメント機能のチェック（チャット追記分）
+        const resetBtn = () => {
+             sendBtn.disabled = false;
+             sendBtn.textContent = '送信';
+        };
+        if(checkCrisisKeywords(txt, resetBtn)) return; // 危険ワードがあれば中断
+
         chatInput.value='';
         sendBtn.disabled=true; sendBtn.textContent='...';
         
         addChatMessage(txt.replace(/\n/g, '<br>'), 'user');
         State.recordData.reasonU += `\n(追記) ${txt}`;
         
-        // Pass true for follow-up turns
         const res = await fetchLLM(txt);
         handleAIResponse(res, true);
         
