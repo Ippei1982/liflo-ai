@@ -794,7 +794,7 @@ function initGoals() {
                         return b;
                     };
 
-                    if (currentTab === 'active' || !tabActive) { // ★タブがない場合もこちらで描画
+                    if (currentTab === 'active') {
                         // 進行中タブのボタン
                         const recBtn = createBtn("今日の記録 ✍️", "bg-teal-100 text-teal-700 hover:bg-teal-200", () => navigateTo('record', {goal:g}), true);
                         const achBtn = createBtn("達成 🎉", "bg-yellow-100 text-yellow-700 hover:bg-yellow-200", () => handleChangeStatus(g, '達成', 10000));
@@ -1140,6 +1140,7 @@ function initTheoryPage() { appDiv.querySelector('.back-button').addEventListene
 
 window.onload = function() { 
     // ★onload時にデータ取得と描画をチェーンで実行 (初期化の安定化)
+    // fetchUserData() の完了を待って render() を実行
     fetchUserData().then(() => render()); 
 };
 
