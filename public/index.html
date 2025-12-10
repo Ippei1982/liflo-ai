@@ -91,33 +91,29 @@
         </div>
     </template>
 
-   <template id="goal-management-template">
-    <div class="space-y-6">
-        <h2 class="text-3xl font-bold text-emerald-600"> 🎯 目標管理マイページ</h2>
-        <div class="flex w-full border-b border-gray-200 pb-1">
-            <button id="tab-active" class="flex-1 px-4 py-3 text-sm font-bold text-emerald-600 border-b-4 border-emerald-600 transition-colors text-center">🚀 進行中</button>
-            <button id="tab-history" class="flex-1 px-4 py-3 text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors text-center">📜 履歴</button>
+    <template id="goal-management-template">
+        <div class="space-y-6">
+            <h2 class="text-3xl font-bold text-emerald-600"> 🎯 目標管理マイページ</h2>
+            <div class="flex w-full border-b border-gray-200 pb-1">
+                <button id="tab-active" class="flex-1 px-4 py-3 text-sm font-bold text-emerald-600 border-b-4 border-emerald-600 transition-colors text-center">🚀 進行中</button>
+                <button id="tab-history" class="flex-1 px-4 py-3 text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors text-center">📜 履歴</button>
+            </div>
+            <div id="goal-list" class="space-y-4 min-h-[200px]"></div>
+            <button id="add-goal-button" class="w-full py-3 px-4 rounded-lg shadow-md text-white bg-emerald-600 hover:bg-emerald-700 font-semibold">新しい目標を登録する +</button>
+            <button data-action="top" class="w-full py-2 px-4 text-emerald-600 hover:underline mt-4 back-button">トップページに戻る 🏠 </button>
         </div>
-        <div id="goal-list" class="space-y-4 min-h-[200px]"></div>
-        <button id="add-goal-button" class="w-full py-3 px-4 rounded-lg shadow-md text-white bg-emerald-600 hover:bg-emerald-700 font-semibold">新しい目標を登録する +</button>
-        <button data-action="top" class="w-full py-2 px-4 text-emerald-600 hover:underline mt-4 back-button">トップページに戻る 🏠 </button>
-    </div>
     </template>
 
     <template id="goal-card-template">
         <div class="goal-card p-5 border border-emerald-100 rounded-2xl shadow-sm bg-white hover:shadow-md transition-shadow relative">
             <div class="mb-4">
                 <h3 class="text-lg font-bold text-gray-800 leading-snug mb-2" data-field="goal-title"></h3>
-                <div class="flex items-center justify-between mb-3">
-                <span class="inline-flex items-center text-xs font-bold px-2 py-1 rounded border hidden" data-field="goal-cat-tag"></span>
-                <span class="text-xs text-gray-400 font-medium hidden" data-field="goal-date-tag"></span>
+                <div class="flex items-center justify-between mb-3"><span class="inline-flex items-center text-xs font-bold px-2 py-1 rounded border hidden" data-field="goal-cat-tag"></span><span class="text-xs text-gray-400 font-medium hidden" data-field="goal-date-tag"></span></div>
+                <div class="bg-gray-50 rounded-lg p-2 border border-gray-100 hidden" data-field="goal-step"><p class="text-xs text-gray-500 font-bold mb-1"> 🏁 最初の一歩</p><p class="text-sm text-gray-700 goal-step-text"></p></div>
             </div>
-            <div class="bg-gray-50 rounded-lg p-2 border border-gray-100 hidden" data-field="goal-step">
-                <p class="text-xs text-gray-500 font-bold mb-1"> 🏁 最初の一歩</p>
-                <p class="text-sm text-gray-700 goal-step-text"></p>
-            </div>
-        </div>
-            <div class="flex items-stretch gap-3 button-container">
+            <div class="flex items-stretch gap-3">
+                <button type="button" data-action="start-record" class="flex-1 py-3 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold shadow-md hover:from-emerald-600 hover:to-teal-600 transform transition active:scale-95 flex items-center justify-center gap-2"><span class="text-xl"> ✍️ </span><span>今日の記録</span></button>
+                <button type="button" class="edit-btn px-4 bg-emerald-100 text-emerald-700 rounded-xl hover:bg-emerald-200 transition-colors flex items-center justify-center border border-emerald-200" title="内容を編集する"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
             </div>
         </div>
     </template>
