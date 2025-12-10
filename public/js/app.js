@@ -2,7 +2,7 @@
  * LIFLO-AI Application Script
  * Update: Goal Consultation Fix (Avoid loop & Update placeholder)
  * V2.0: Added Security Features (Disclaimer & Forbidden Word Check)
- * V2.1: Updated Forbidden Words, Goal Management UI/Logic (3xxxx Delete ID)
+ * V2.2: Updated Goal Management Logic, Record Input Filter, and One-time Disclaimer
  */
 
 const LOGO_DATA = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PC9zdmc+";
@@ -121,7 +121,6 @@ function extractLLMData(txt) {
 
 // --- 安全管理機能関連 ---
 
-// ★修正: 禁止ワードリストを更新
 const FORBIDDEN_WORDS = [
     "死", "ころす", "殺す", "自殺", "自傷", "暴れる", 
     "暴力", "破壊", "ドラッグ", "麻薬", "しにたい", 
@@ -164,22 +163,15 @@ async function showDisclaimerModal() {
         const okButton = t.getElementById('modal-ok');
         const cancelButton = t.getElementById('modal-cancel');
         
-        // モーダルテンプレート内に存在しない要素を動的に挿入するため、IDをユニークにするか、ここで要素を作成してDOMに追加する必要があります。
-        // ここでは、showModalが返すテンプレート内のDOMを操作します。
         const checkElement = t.querySelector('#modal-content #disclaimer-check');
 
-        // CheckElementがNullの可能性を考慮 (modal-template内に disclamer-check がない場合)
         if (!checkElement) {
-            console.error("Disclaimer checkbox not found in modal template structure.");
-            // 互換性のため、この場合は同意したものとして進めるか、エラーを表示すべきですが、
-            // 以前の指示ではindex.html修正なしとしているため、ここでは単純にエラーログに留めます。
-            // 実際にはチェックボックスがHTMLテンプレート内に存在するか確認が必要です。
+             console.error("Disclaimer checkbox not found. Proceeding without checkbox validation.");
         }
 
         okButton.disabled = true;
         okButton.classList.add('opacity-50', 'cursor-not-allowed');
 
-        // チェックボックスが存在する場合のみイベントリスナーを設定
         if(checkElement) {
             checkElement.addEventListener('change', () => {
                 okButton.disabled = !checkElement.checked;
@@ -187,13 +179,13 @@ async function showDisclaimerModal() {
                 okButton.classList.toggle('cursor-not-allowed', !checkElement.checked);
             });
         } else {
-             // チェックボックスがない場合、OKを押せば即時同意とする (暫定措置)
              okButton.disabled = false;
              okButton.classList.remove('opacity-50', 'cursor-not-allowed');
         }
 
         okButton.onclick = () => {
             document.body.removeChild(backdrop);
+            localStorage.setItem('LIFLO_DISCLAIMER_ACCEPTED', 'true'); // ★追加: 同意フラグをセット
             resolve(true); 
         };
         
@@ -507,10 +499,12 @@ function initLogin() {
     
     const auth = async(act) => {
         
-        // 免責事項の確認を追加
-        const disclaimerAccepted = await showDisclaimerModal();
-        if (!disclaimerAccepted) {
-            return;
+        // ★修正: ローカルストレージチェック
+        if (localStorage.getItem('LIFLO_DISCLAIMER_ACCEPTED') !== 'true') {
+            const disclaimerAccepted = await showDisclaimerModal();
+            if (!disclaimerAccepted) {
+                return;
+            }
         }
         
         let uid = userIdInput.value.trim();
@@ -572,21 +566,16 @@ async function fetchUserData() {
                 const existing = gm.get(realID);
                 const firstDate = existing ? existing.startDate : d.date;
 
-                // 【★重要修正ポイント】
-                // '削除'ステータスのレコードが見つかった場合、その目標ID（realID）はMapに含めません。
-                // 既にMapにある場合でも、最新のレコードが'削除'であれば上書きして除去します。
                 if (status === '削除') {
                     gm.delete(realID);
                 } else {
-                    // 削除ではない場合、または最初のレコードの場合はセット
                     gm.set(realID, { goalNo: realID, goal: d.goal, startDate: firstDate, lastDate: d.date, status: status });
                 }
             }
         });
         
-        // Mapに残っているものが、現在のアクティブ/履歴目標です。
         State.activeGoals = Array.from(gm.values())
-            .filter(g => g.status !== '削除') // 念のためフィルターを維持
+            .filter(g => g.status !== '削除')
             .sort((a,b)=>a.goalNo-b.goalNo);
             
         let mx = 0; r.userRecords.forEach(d=>{ let g = parseInt(d.goalNo); if(g >= 10000) g = g % 10000; if(g > mx && g < 9999) mx = g; });
@@ -602,7 +591,7 @@ function initTop() {
         button.addEventListener('click', (e) => {
             const target = e.currentTarget;
             const action = target.dataset.action;
-            if(action === 'record' && State.activeGoals.length === 0) { customAlert('目標を登録してください'); navigateTo('goals'); } else { navigateTo(action); }
+            if(action === 'record' && State.activeGoals.filter(g => !g.status).length === 0) { customAlert('進行中の目標を登録してください'); navigateTo('goals'); } else { navigateTo(action); }
         });
     });
     
@@ -628,7 +617,6 @@ function initGoals() {
     if (!goalCardTemplate.content.querySelector('[data-action="mark-complete"]')) {
         const actionContainer = goalCardTemplate.content.querySelector('.flex.items-stretch.gap-3');
         if (actionContainer) {
-            // 既存のHTMLを新しい構造に置き換え（HTMLに存在しない要素はここで追加）
             actionContainer.innerHTML = `
                 <button type="button" data-action="start-record" class="flex-1 py-3 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold shadow-md hover:from-emerald-600 hover:to-teal-600 transform transition active:scale-95 flex items-center justify-center gap-2"><span class="text-xl"> ✍️ </span><span>今日の記録</span></button>
                 <button type="button" class="edit-btn px-4 bg-emerald-100 text-emerald-700 rounded-xl hover:bg-emerald-200 transition-colors flex items-center justify-center border border-emerald-200" title="内容を編集する"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
@@ -669,7 +657,6 @@ function initGoals() {
             if(!reason) return;
         }
 
-        // 完全に削除の場合、reasonは内部メッセージ
         if (actionLabel === '完全に削除') {
             reason = `完全に削除しました by ${State.userName}`;
         }
@@ -683,7 +670,6 @@ function initGoals() {
     const ren = () => {
         lst.innerHTML = '';
         const targets = State.activeGoals.filter(g => {
-            // fetchUserDataで既に'削除'ステータスのものはフィルタリングされている
             const isActive = !g.status;
             const isHistory = g.status === '達成' || g.status === '中止';
             
@@ -721,13 +707,13 @@ function initGoals() {
                 
                 if (g.status === '達成') { 
                     prefix = '🎉 '; 
-                    card.classList.remove('bg-white', 'border-emerald-100');
-                    card.classList.add('bg-purple-50', 'border-purple-200'); // 達成はすごい色
+                    card.classList.remove('bg-white', 'border-emerald-100', 'bg-gray-100', 'border-gray-200');
+                    card.classList.add('bg-purple-50', 'border-purple-200'); 
                 } else if (g.status === '中止') { 
                     prefix = '⏹️ '; 
                     titleClass = 'text-gray-500';
-                    card.classList.remove('bg-white', 'border-emerald-100');
-                    card.classList.add('bg-gray-100', 'border-gray-200'); // 中止はグレー
+                    card.classList.remove('bg-white', 'border-emerald-100', 'bg-purple-50', 'border-purple-200');
+                    card.classList.add('bg-gray-100', 'border-gray-200'); 
                 } else {
                     card.classList.add('bg-white', 'border-emerald-100');
                 }
@@ -761,7 +747,6 @@ function initGoals() {
             
             // 3. ボタンの表示・動作設定
             if (currentTab === 'active') {
-                // 進行中タブの場合
                 markCompBtn.classList.remove('hidden');
                 markCancelBtn.classList.remove('hidden');
                 histResumeBtn.classList.add('hidden');
@@ -769,28 +754,21 @@ function initGoals() {
 
                 recBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); navigateTo('record', {goal:g}); };
 
-                // 達成ボタンの動作
                 markCompBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); handleGoalStatusChange(g, 10000 + g.goalNo, '達成'); };
                 
-                // 中止ボタンの動作
                 markCancelBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); handleGoalStatusChange(g, 20000 + g.goalNo, '中止'); };
                 
             } else {
-                // 履歴タブの場合
                 recBtn.classList.add('hidden');
                 markCompBtn.classList.add('hidden');
                 markCancelBtn.classList.add('hidden');
                 histResumeBtn.classList.remove('hidden');
                 histDeleteBtn.classList.remove('hidden');
 
-                // 再開ボタンの動作
                 histResumeBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); handleGoalStatusChange(g, g.goalNo, '再開'); };
 
-                // 完全に削除ボタンの動作
-                // GoalNoを3xxxxに変更
                 histDeleteBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); handleGoalStatusChange(g, 30000 + g.goalNo, '完全に削除'); };
             }
-
 
             // 編集ボタンの動作（進行中・履歴共通）
             if(editBtn) {
@@ -804,18 +782,15 @@ function initGoals() {
                     const result = await modalPromise;
                     if(!result) return;
                     
-                    // 禁止ワードチェック
-                    const allText = `${result.goal} ${result.category} ${result.step}`;
-                    if (containsForbiddenWords(allText)) {
+                    if (containsForbiddenWords(`${result.goal} ${result.category} ${result.step}`)) {
                         await customAlert('入力された内容に、**専門機関での対応が必要な可能性のある言葉**が含まれています。<br><br>大変恐れ入りますが、目標の変更はできません。<span class="font-bold text-red-600">まずは専門機関にご相談ください。</span>');
                         return;
                     }
 
-                    // GoalNoの決定ロジック
                     let saveID = g.goalNo;
                     if (result.status === '達成') saveID = 10000 + g.goalNo;
                     else if (result.status === '中止') saveID = 20000 + g.goalNo;
-                    else saveID = g.goalNo; // 進行中に戻す or 現状維持（進行中）
+                    else saveID = g.goalNo;
 
                     const newGoalString = `${result.goal} (Cat:${result.category}, 1st:${result.step})`;
                     await fetchGAS('POST', { action: 'saveData', date: getFormattedDate(), userID: State.userID, userName: State.userName, goalNo: saveID, goal: newGoalString });
@@ -858,9 +833,7 @@ function initGoals() {
             const i = await modalPromise;
             if(!i) return;
             
-            // 禁止ワードチェック
-            const allText = `${i.goal} ${i.category} ${i.step}`;
-            if (containsForbiddenWords(allText)) {
+            if (containsForbiddenWords(`${i.goal} ${i.category} ${i.step}`)) {
                 await customAlert('入力された内容に、**専門機関での対応が必要な可能性のある言葉**が含まれています。<br><br>大変恐れ入りますが、目標の登録・調整ではなく、<span class="font-bold text-red-600">まずは専門機関にご相談ください。</span>');
                 return;
             }
@@ -876,9 +849,27 @@ function initGoals() {
 }
 
 function initRecord() {
-    if(!State.selectedGoal && State.activeGoals.length>0) State.selectedGoal=State.activeGoals[0];
+    // 記録可能な目標（statusが''、つまり進行中の目標）のみをフィルタリング
+    const recordableGoals = State.activeGoals.filter(g => !g.status); 
+
+    if(!State.selectedGoal || recordableGoals.findIndex(g => g.goalNo === State.selectedGoal.goalNo) === -1) {
+        // 現在の選択目標が無効、または未選択の場合、最初の記録可能目標を選択
+        State.selectedGoal = recordableGoals.length > 0 ? recordableGoals[0] : null;
+    }
+
     const sel = document.getElementById('record-goal-select');
-    sel.innerHTML = State.activeGoals.map(g => `<option value="${g.goalNo}" ${State.selectedGoal?.goalNo==g.goalNo?'selected':''}>#${g.goalNo} ${getGoalMainText(g.goal).substr(0,20)}...</option>`).join('');
+    // 記録可能な目標のみをドロップダウンに表示
+    sel.innerHTML = recordableGoals.map(g => `<option value="${g.goalNo}" ${State.selectedGoal?.goalNo==g.goalNo?'selected':''}>#${g.goalNo} ${getGoalMainText(g.goal).substr(0,20)}...</option>`).join('');
+    
+    // 記録可能な目標がない場合のエラーハンドリング
+    if (recordableGoals.length === 0) {
+        sel.innerHTML = `<option value="">進行中の目標がありません</option>`;
+        document.getElementById('cs-evaluation-form').classList.add('hidden');
+        document.getElementById('record-chat-area').classList.add('hidden');
+        document.querySelector('.back-button').insertAdjacentHTML('beforebegin', '<p class="text-center text-red-500 font-bold mb-4">記録可能な進行中の目標がありません。目標管理画面で目標を設定または再開してください。🎯</p>');
+        return; 
+    }
+
     sel.onchange = (e) => {
         const g = State.activeGoals.find(item => item.goalNo == e.target.value);
         if (g) { State.currentChat = []; State.recordData = null; State.pendingData = null; navigateTo('record', {goal: g}); }
@@ -915,7 +906,6 @@ function initRecord() {
         initBtn.textContent = '記録してライフロと相談する 🚀';
     }
 
-    // --- Updated: Display Control Logic ---
     const handleAIResponse = (raw, isFollowUp = false) => {
         const { text, data } = extractLLMData(raw);
         let firstMsgElement = null;
@@ -928,24 +918,20 @@ function initRecord() {
             const guide = document.getElementById('save-recommend-text');
             if(guide) guide.style.display = 'none';
         } else {
-            // 1. Text (Conversation): Always show, clean Markdown
             if(text) { 
                 const cleanText = text.replace(/\*\*/g, '').replace(/__/g, '').replace(/\n/g, '<br>');
                 firstMsgElement = addChatMessage(cleanText, 'bot'); 
             }
 
-            // 2. Data: Always update state, selectively show bubbles
             if(data){
-                State.pendingData = data; // Keep latest data for saving
+                State.pendingData = data; 
 
-                // Show Analysis Bubble ONLY if NOT follow-up (First turn only)
                 if (!isFollowUp) {
                     const analysisHtml = `<div class="border-b border-blue-200 pb-2 mb-2"><div class="font-bold text-orange-600"> 📊 ライフロの見立て (挑戦${data.challengeAI}/能力${data.skillAI})</div><div class="font-bold text-blue-600 mt-1"> 🤔 ライフロの分析</div></div><div class="text-gray-700">${data.reasonAI}</div>`;
                     const analysisMsg = addChatMessage(analysisHtml, 'bot', 'analysis');
                     if (!firstMsgElement) firstMsgElement = analysisMsg;
                 }
 
-                // Show Regoal Bubble ALWAYS (It updates with conversation)
                 const goalHtml = `<div class="font-bold text-green-600 mb-1 border-b border-green-200 pb-1"> 🚩 今後の目標／課題</div>${data.regoalAI}`;
                 addChatMessage(goalHtml, 'bot', 'regoal');
             }
@@ -961,7 +947,6 @@ function initRecord() {
         const r = document.getElementById('reasonU').value;
         if(!c || !s){ customAlert('評価を選択してください'); return; }
 
-        // 禁止ワードチェック (自己評価の理由)
         if (containsForbiddenWords(r)) {
             await customAlert('入力された内容に、**専門機関での対応が必要な可能性のある言葉**が含まれています。<br><br>この記録は保存されません。<span class="font-bold text-red-600">まずは専門機関にご相談ください。</span>');
             return;
@@ -974,7 +959,6 @@ function initRecord() {
         const p = `目標: ${getGoalMainText(State.selectedGoal.goal)}\n自己評価: 挑戦${c}/能力${s}\n理由: ${r}`;
         addChatMessage(p.replace(/\n/g, '<br>'), 'user');
         
-        // Pass false for first turn
         const res = await fetchLLM(p);
         handleAIResponse(res, false);
         
@@ -986,7 +970,6 @@ function initRecord() {
         const txt = chatInput.value.trim();
         if(!txt) return;
 
-        // 禁止ワードチェック (チャット入力)
         if (containsForbiddenWords(txt)) {
             await customAlert('入力された内容に、**専門機関での対応が必要な可能性のある言葉**が含まれています。<br><br><span class="font-bold text-red-600">チャットはできません。専門機関にご相談ください。</span>');
             chatInput.value = '';
@@ -999,7 +982,6 @@ function initRecord() {
         addChatMessage(txt.replace(/\n/g, '<br>'), 'user');
         State.recordData.reasonU += `\n(追記) ${txt}`;
         
-        // Pass true for follow-up turns
         const res = await fetchLLM(txt);
         handleAIResponse(res, true);
         
