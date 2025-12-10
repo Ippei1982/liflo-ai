@@ -1,6 +1,6 @@
 /**
  * LIFLO-AI Application Script
- * FINAL FINAL STABLE VERSION: Global Error Handling and Goals List Fix
+ * FINAL STABLE VERSION: Top Screen/Goals List Crash Avoidance Logic
  */
 
 const LOGO_DATA = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PC9zdmc+";
@@ -410,7 +410,14 @@ function render() {
         else if(State.view==='record') id='record-input-template';
         else if(State.view==='review') id='review-template';
         else if(State.view==='theory') id='theory-template';
-        appDiv.appendChild(document.getElementById(id).content.cloneNode(true));
+        
+        // ★ HTMLテンプレートの存在チェック
+        const template = document.getElementById(id);
+        if (!template) {
+             throw new Error(`Template not found: ${id}`);
+        }
+        
+        appDiv.appendChild(template.content.cloneNode(true));
         
         // 各ビューの初期化
         if(State.view==='login') initLogin();
@@ -419,16 +426,16 @@ function render() {
         else if(State.view==='record') initRecord();
         else if(State.view==='review') initReview();
         else if(State.view==='theory') initTheoryPage();
+        
     } catch (error) {
         console.error("Render Critical Error:", error);
-        // 描画失敗時にログイン画面に戻すか、エラーメッセージを表示
-        if (State.view !== 'login') {
-             // ログイン画面の表示を試みる
+        // ログイン画面の表示を試みる (無限ループ防止のため、State.viewが'login'になる前の状態でのみ再帰を許容)
+        if (State.view !== 'login' && !appDiv.querySelector('#login-button')) {
              State.view = 'login';
-             render(); // 再帰的にrenderを呼び出す（無限ループ防止のため、この再帰は1回のみと想定）
+             render();
         } else {
              // ログイン画面でも失敗した場合
-             appDiv.innerHTML = '<div class="text-center p-10 text-red-600">初期化中に予期せぬエラーが発生しました。アプリをリロードしてください。</div>';
+             appDiv.innerHTML = '<div class="text-center p-10 text-red-600">初期化中に致命的なエラーが発生しました。アプリをリロードしてください。</div>';
         }
     }
 }
