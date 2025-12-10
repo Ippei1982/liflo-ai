@@ -1,6 +1,6 @@
 /**
  * LIFLO-AI Application Script
- * Final Fix 2: Goal Status Control for Record Input & Review
+ * Final Fix 4: Restore Edit Button for Active Goals in Goals Management
  */
 
 const LOGO_DATA = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PC9zdmc+";
@@ -49,7 +49,7 @@ function getGoalMainText(fullText) {
     return fullText;
 }
 
-function showModal({ title, message = '', showInput = false, inputType = 'default', placeholder = '', showCancel = false }) {
+function showModal({ title, message = '', showInput = false, inputType = 'default', placeholder = '', showCancel = false, isGoalEdit = false, currentGoal = {} }) {
     return new Promise((resolve) => {
         const t = document.getElementById('modal-template').content.cloneNode(true);
         const backdrop = t.getElementById('modal-backdrop');
@@ -60,7 +60,28 @@ function showModal({ title, message = '', showInput = false, inputType = 'defaul
 
         if(showInput){
             if(inputType==='default'){ iCon.classList.remove('hidden'); iEl.placeholder=placeholder; }
-            else if(inputType==='goal-form') gForm.classList.remove('hidden');
+            else if(inputType==='goal-form') {
+                gForm.classList.remove('hidden');
+                
+                const statusSelect = document.getElementById('modal-goal-form').querySelector('div:last-child');
+                
+                if (isGoalEdit && currentGoal.goal) {
+                    // 目標編集フォームの初期値設定
+                    setTimeout(() => {
+                        document.getElementById('goal-input-main').value = getGoalMainText(currentGoal.goal);
+                        const catMatch = currentGoal.goal.match(/Cat:(.*?)(?:,|,\s|\)|$)/);
+                        const stepMatch = currentGoal.goal.match(/1st:(.*?)(?:,|,\s|\)|$)/);
+                        if (catMatch) document.getElementById('goal-input-category').value = catMatch[1].trim();
+                        if (stepMatch) document.getElementById('goal-input-step').value = stepMatch[1].trim();
+                        document.getElementById('goal-input-status').value = currentGoal.status || ''; 
+                    }, 50);
+                    // 編集時はステータス選択セレクトを表示
+                    if (statusSelect) statusSelect.style.display = 'block';
+                } else if (!isGoalEdit) {
+                    // 目標登録時はステータス変更セレクトを非表示
+                    if (statusSelect) statusSelect.style.display = 'none';
+                }
+            }
         }
         if(showCancel){
             can.classList.remove('hidden');
@@ -117,7 +138,7 @@ function extractLLMData(txt) {
     return { text: c, data: null };
 }
 
-// --- Crisis Management Logic (Global) ---
+// --- Crisis Management Logic ---
 function checkCrisisKeywords(text, uiCallback) {
     if (!text) return false;
     const dangerKeywords = [
@@ -548,7 +569,7 @@ function initTop() {
             const target = e.currentTarget;
             const action = target.dataset.action;
             if(action === 'record' && State.activeGoals.filter(g => !g.status).length === 0) { 
-                customAlert('進行中の目標がありません。目標を登録・再開してください。'); 
+                customAlert('進行中の目標がありません。目標管理画面で新しい目標を登録するか、履歴から目標を「再開」してください。'); 
                 navigateTo('goals'); 
             } else { 
                 navigateTo(action); 
@@ -570,7 +591,7 @@ function initGoals() {
     const tabHistory = document.getElementById('tab-history');
     
     if(!tabActive || !tabHistory) {
-         // HTML構造チェック済み
+         // Tabs not found
     } else {
         const baseTabClass = "flex-1 px-4 py-3 text-sm font-bold transition-colors text-center cursor-pointer";
         const activeStyle = "text-emerald-600 border-b-4 border-emerald-600 bg-white";
@@ -590,6 +611,7 @@ function initGoals() {
         };
         tabActive.onclick = () => switchTab('active'); 
         tabHistory.onclick = () => switchTab('history');
+        switchTab('active');
     }
 
     const ren = () => {
@@ -664,63 +686,71 @@ function initGoals() {
                 if(g.status === '中止') stepEl.classList.add('opacity-50');
             }
 
-            // 編集ボタンのイベント設定
-            const editBtn = t.querySelector('.edit-btn');
-            if(editBtn) {
-                editBtn.onclick = async (e) => {
-                    e.preventDefault(); e.stopPropagation();
-                    const modalPromise = showModal({ title: '目標の編集', showInput: true, inputType: 'goal-form', showCancel: true });
-                    setTimeout(() => {
-                        const mMain = document.getElementById('goal-input-main'); const mCat = document.getElementById('goal-input-category'); const mStep = document.getElementById('goal-input-step');
-                        if(mMain) mMain.value = titleOnly; if(mCat) mCat.value = category; if(mStep) mStep.value = step;
-                    }, 50);
+            // --- ボタン生成エリア ---
+            const btnContainer = t.querySelector('.button-container');
+            if(btnContainer) {
+                btnContainer.innerHTML = '';
+                
+                // 編集ボタンの共通処理
+                const handleEdit = async () => {
+                    // 目標編集モーダルを開く
+                    const modalPromise = showModal({ title: '目標の編集', showInput: true, inputType: 'goal-form', showCancel: true, isGoalEdit: true, currentGoal: g });
                     const result = await modalPromise;
                     if(!result) return;
                     
                     const checkText = `${result.goal} ${result.step}`;
                     if(checkCrisisKeywords(checkText)) return;
 
+                    // ステータスはモーダルからの入力結果(result.status)を使用
                     let currentStatusOffset = 0;
-                    if(g.status === '達成') currentStatusOffset = 10000;
-                    if(g.status === '中止') currentStatusOffset = 20000;
-                    
+                    if(result.status === '達成') currentStatusOffset = 10000;
+                    else if(result.status === '中止') currentStatusOffset = 20000;
+                    // statusが空文字列（進行中）の場合は 0
+
                     const saveID = currentStatusOffset + g.goalNo;
                     const newGoalString = `${result.goal} (Cat:${result.category}, 1st:${result.step})`;
                     
                     await fetchGAS('POST', { action: 'saveData', date: getFormattedDate(), userID: State.userID, userName: State.userName, goalNo: saveID, goal: newGoalString });
                     customAlert('更新しました！✨'); await fetchUserData(); ren();
                 };
-            }
 
-            // --- ボタン生成エリア (class="button-container") ---
-            const btnContainer = t.querySelector('.button-container');
-            if(btnContainer) {
-                btnContainer.innerHTML = '';
-                
+                // ヘルパー関数
+                const createBtn = (text, colorClass, onClick, isGrow = false) => {
+                    const b = document.createElement('button');
+                    b.className = `py-2 px-3 text-sm rounded-lg font-bold ${colorClass} ${isGrow ? 'flex-grow' : ''}`;
+                    b.textContent = text;
+                    b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); onClick(); };
+                    return b;
+                };
+                const createIconBtn = (icon, colorClass, onClick) => {
+                    const b = document.createElement('button');
+                    b.className = `p-3 text-sm rounded-lg font-bold ${colorClass} flex items-center justify-center`;
+                    b.textContent = icon;
+                    b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); onClick(); };
+                    return b;
+                };
+
                 if (currentTab === 'active') {
+                    // 進行中タブのボタン
                     const recBtn = createBtn("今日の記録 ✍️", "bg-teal-100 text-teal-700 hover:bg-teal-200", () => navigateTo('record', {goal:g}), true);
                     const achBtn = createBtn("達成 🎉", "bg-yellow-100 text-yellow-700 hover:bg-yellow-200", () => handleChangeStatus(g, '達成', 10000));
                     const stpBtn = createBtn("中止 ⏹️", "bg-gray-100 text-gray-700 hover:bg-gray-200", () => handleChangeStatus(g, '中止', 20000));
                     const delBtn = createBtn("🗑️", "bg-red-100 text-red-700 hover:bg-red-200", () => handleChangeStatus(g, '削除', 30000));
-                    btnContainer.append(recBtn, achBtn, stpBtn, delBtn);
+                    const editBtn = createIconBtn("✏️", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", handleEdit); // ★復活
+
+                    btnContainer.append(recBtn, achBtn, stpBtn, delBtn, editBtn);
                 
                 } else if (currentTab === 'history') {
-                    // 履歴タブのボタン（再開・削除）
+                    // 履歴タブのボタン
                     const restoreBtn = createBtn("再開する 🔄", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", () => handleChangeStatus(g, '再開', 0), true);
                     const delBtn = createBtn("完全に削除 🗑️", "bg-red-100 text-red-700 hover:bg-red-200", () => handleChangeStatus(g, '削除', 30000));
-                    btnContainer.append(restoreBtn, delBtn);
+                    const editBtn = createIconBtn("✏️", "bg-emerald-100 text-emerald-700 hover:bg-emerald-200", handleEdit); // ★復活
+
+                    btnContainer.append(restoreBtn, delBtn, editBtn);
                 }
             }
             lst.appendChild(t);
         });
-    };
-
-    const createBtn = (text, colorClass, onClick, isGrow = false) => {
-        const b = document.createElement('button');
-        b.className = `py-2 px-3 text-sm rounded-lg font-bold ${colorClass} ${isGrow ? 'flex-grow' : ''}`;
-        b.textContent = text;
-        b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); onClick(); };
-        return b;
     };
 
     const handleChangeStatus = async (goalObj, statusLabel, offsetID) => {
@@ -735,7 +765,15 @@ function initGoals() {
         if(checkCrisisKeywords(reason)) return;
 
         const saveID = offsetID + goalObj.goalNo;
-        await fetchGAS('POST', { action: 'saveData', date: getFormattedDate(), userID: State.userID, userName: State.userName, goalNo: saveID, goal: goalObj.goal, reasonU: reason });
+        await fetchGAS('POST', { 
+            action: 'saveData', 
+            date: getFormattedDate(), 
+            userID: State.userID, 
+            userName: State.userName, 
+            goalNo: saveID, 
+            goal: goalObj.goal, 
+            reasonU: reason 
+        });
         
         let doneMsg = '更新しました ✨';
         if (statusLabel === '削除') doneMsg = '削除しました 🗑️';
@@ -747,8 +785,10 @@ function initGoals() {
     const addBtn = document.getElementById('add-goal-button');
     if(addBtn) {
         addBtn.onclick = async() => {
-            const modalPromise = showModal({ title:'目標登録', showInput:true, inputType:'goal-form', showCancel:true });
+            // isGoalEdit: false を渡すことで、目標登録モーダルを起動
+            const modalPromise = showModal({ title:'目標登録', showInput:true, inputType:'goal-form', showCancel:true, isGoalEdit: false });
             
+            // 目標相談ボタンは、モーダルが開いた後に挿入する
             setTimeout(() => {
                 const formArea = document.getElementById('modal-goal-form');
                 const uidStr = State.userID.toString();
@@ -760,12 +800,10 @@ function initGoals() {
                     btn.innerHTML = "<span>🤖</span> ライフロと相談して決める";
                     btn.onclick = (e) => {
                         e.preventDefault();
-                        const mMain = document.getElementById('goal-input-main');
-                        const mCat = document.getElementById('goal-input-category');
-                        const mStep = document.getElementById('goal-input-step');
-                        startGoalConsultation({ main: mMain, cat: mCat, step: mStep });
+                        customAlert('目標相談機能は開発中です。フォームに直接入力してください。');
                     };
-                    formArea.parentNode.insertBefore(btn, formArea);
+                    const inputFormContainer = document.getElementById('modal-goal-form').parentNode;
+                    inputFormContainer.insertBefore(btn, document.getElementById('modal-goal-form'));
                 }
             }, 50);
 
@@ -786,27 +824,22 @@ function initGoals() {
 }
 
 function initRecord() {
-    // 進行中の目標のみをフィルタリング
     const activeGoalsOnly = State.activeGoals.filter(g => !g.status); 
 
     if(activeGoalsOnly.length === 0){
-        // 進行中の目標がない場合
         customAlert('記録できる進行中の目標がありません。目標管理画面で新しい目標を登録するか、履歴から目標を「再開」してください。');
         navigateTo('goals');
         return;
     }
     
-    // 選択可能な目標リストを進行中の目標のみにする
     if(!State.selectedGoal || State.selectedGoal.status) State.selectedGoal = activeGoalsOnly[0];
     const sel = document.getElementById('record-goal-select');
     sel.innerHTML = activeGoalsOnly.map(g => `<option value="${g.goalNo}" ${State.selectedGoal?.goalNo==g.goalNo?'selected':''}>#${g.goalNo} ${getGoalMainText(g.goal).substr(0,20)}...</option>`).join('');
     
     sel.onchange = (e) => {
-        // 選択された目標が進行中リストに含まれるか確認
         const g = activeGoalsOnly.find(item => item.goalNo == e.target.value);
         if (g) { State.currentChat = []; State.recordData = null; State.pendingData = null; navigateTo('record', {goal: g}); }
     };
-    // ...（中略：以下、以前のコードと同一）...
     
     const uidStr = State.userID.toString();
     const isControl = uidStr.startsWith('26') && uidStr.length === 6;
@@ -939,9 +972,9 @@ function initReview() {
     const box = document.getElementById('record-details-container');
     const tit = document.getElementById('chart-title');
     
-    // 【修正点】振り返り対象の目標: 削除フラグがない目標すべて（進行中、達成、中止）
+    // 振り返り対象の目標: 削除フラグがない目標すべて（進行中、達成、中止）
     const reviewableGoals = State.activeGoals.filter(g => 
-        g.status !== '削除' && State.userRecords.some(r => r.goalNo==g.goalNo && r.challengeU)
+        g.status !== '削除' && State.userRecords.some(r => r.goalNo == g.goalNo && r.challengeU)
     );
 
     if(reviewableGoals.length===0){ box.innerHTML='<p class="text-gray-500 p-4">記録なし</p>'; return; }
@@ -963,7 +996,6 @@ function initReview() {
     }
 
     const load = (gn) => {
-        // 【修正点】過去の記録データも、目標ID（gn）が「削除」ステータスの目標のものであればフィルタリング
         const recs = State.userRecords.filter(r => 
             r.goalNo == gn && r.challengeU
         ).sort((a,b)=>new Date(a.date)-new Date(b.date));
