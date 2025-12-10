@@ -1,7 +1,6 @@
 /**
  * LIFLO-AI Application Script
- * Final Version: RCT Edition
- * Features: Crisis Management, Logical Deletion, ToS Logic, Control Group, History UI
+ * Final Fix: HTML Template Sync & Crisis Management & Deletion
  */
 
 const LOGO_DATA = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjY2NjIi8+PC9zdmc+";
@@ -118,15 +117,12 @@ function extractLLMData(txt) {
     return { text: c, data: null };
 }
 
-// --- Crisis Management Logic (Global) ---
+// --- Crisis Management Logic ---
 function checkCrisisKeywords(text, uiCallback) {
     if (!text) return false;
     const dangerKeywords = [
-        // 自傷・自殺関連
         '死にたい', '消えたい', '自殺', '死ぬ', '逝きたい',
-        // 他害・暴力・殺意
         '殺したい', '殺す', '刺す', '殴る', '復讐',
-        // 攻撃・犯罪・ハラスメント
         '陥れる', '許さない', '破滅', '死ね', 'おとしいれる'
     ];
 
@@ -137,39 +133,31 @@ function checkCrisisKeywords(text, uiCallback) {
                     <span class="text-2xl">⚠️</span>
                     <span class="font-bold text-lg">AIからのメッセージ</span>
                 </div>
-                <p class="text-sm font-bold mb-2">
-                    入力された内容には、AIが適切に対応できない、または利用規約に抵触する可能性のある表現が含まれています。
-                </p>
-                <p class="text-sm mb-3">
-                    強いストレスや悩み、またはトラブルを抱えている場合は、AIではなく専門の相談機関や窓口をご利用ください。
-                </p>
+                <p class="text-sm font-bold mb-2">入力された内容には、AIが適切に対応できない、または利用規約に抵触する可能性のある表現が含まれています。</p>
+                <p class="text-sm mb-3">強いストレスや悩み、またはトラブルを抱えている場合は、AIではなく専門の相談機関や窓口をご利用ください。</p>
                 <div class="bg-white p-3 rounded border border-red-100 text-xs text-gray-600">
                     <strong>相談窓口のご案内:</strong>
                     <ul class="list-disc ml-5 mt-1 space-y-1">
-                        <li><a href="https://www.inochinodenwa.org/" target="_blank" class="underline text-blue-600">いのちの電話（悩み相談）</a></li>
-                        <li><a href="https://www.houterasu.or.jp/" target="_blank" class="underline text-blue-600">法テラス（法的トラブル）</a></li>
-                        <li><a href="https://www.mhlw.go.jp/mamorouyokokoro/" target="_blank" class="underline text-blue-600">まもろうよこころ（厚労省）</a></li>
+                        <li><a href="https://www.inochinodenwa.org/" target="_blank" class="underline text-blue-600">いのちの電話</a></li>
+                        <li><a href="https://www.houterasu.or.jp/" target="_blank" class="underline text-blue-600">法テラス</a></li>
+                        <li><a href="https://www.mhlw.go.jp/mamorouyokokoro/" target="_blank" class="underline text-blue-600">まもろうよこころ</a></li>
                     </ul>
                 </div>
             </div>
         `;
-        
-        // チャットエリアがあれば表示、なければアラート
         const area = document.getElementById('record-chat-area');
         if (area && !area.classList.contains('hidden')) {
             addChatMessage(warningHtml, 'bot');
         } else {
-            // 目標登録時などはチャット画面がないためモーダルで警告
             customAlert(warningHtml);
         }
-
-        if (uiCallback) uiCallback(); // ボタンの状態を戻す等の処理
-        return true; // 危険ワードあり
+        if (uiCallback) uiCallback();
+        return true; 
     }
-    return false; // 問題なし
+    return false;
 }
 
-// --- 1. Main LLM Logic (OT Record & Review) ---
+// --- 1. Main LLM Logic ---
 
 async function fetchLLM(prompt) {
     let currentContext = "";
@@ -345,10 +333,8 @@ async function startGoalConsultation(targetInputs) {
         const txt = input.value.trim();
         if(!txt) return;
 
-        // ★危険ワードチェック（AIチャット）
         const resetBtn = () => { sendBtn.disabled = false; sendBtn.textContent = '送信'; };
         if(checkCrisisKeywords(txt, resetBtn)) {
-            // モーダル内チャットにも警告を表示
             addMsg(`<span class="font-bold text-red-600">⚠️ 適切な対応ができない表現が含まれているため、中断しました。<br>専門機関へご相談ください。</span>`, false);
             return;
         }
@@ -528,18 +514,15 @@ async function fetchUserData() {
             if(rawG > 0 && d.goal) {
                 let realID = rawG;
                 let status = '';
-                // IDによるステータス判定（論理削除）
                 if (rawG >= 30000) { status = '削除'; realID = rawG - 30000; }
                 else if (rawG >= 20000) { status = '中止'; realID = rawG - 20000; }
                 else if (rawG >= 10000) { status = '達成'; realID = rawG - 10000; }
-                
                 const existing = gm.get(realID);
                 const firstDate = existing ? existing.startDate : d.date;
                 gm.set(realID, { goalNo: realID, goal: d.goal, startDate: firstDate, lastDate: d.date, status: status });
             }
         });
         
-        // 「削除」ステータスの目標は、アクティブリストから除外（非表示）
         State.activeGoals = Array.from(gm.values())
             .filter(g => g.status !== '削除')
             .sort((a,b)=>a.goalNo-b.goalNo);
@@ -580,21 +563,33 @@ function initGoals() {
     let currentTab = 'active';
     const tabActive = document.getElementById('tab-active');
     const tabHistory = document.getElementById('tab-history');
-    const baseTabClass = "flex-1 px-4 py-3 text-sm font-bold transition-colors text-center cursor-pointer";
-    const activeStyle = "text-emerald-600 border-b-4 border-emerald-600 bg-white";
-    const historyStyle = "text-orange-500 border-b-4 border-orange-500 bg-white";
-    const inactiveStyle = "text-gray-400 hover:text-gray-600 border-b border-gray-200 bg-gray-50";
     
-    const switchTab = (tab) => {
-        currentTab = tab;
-        if(tab === 'active') { tabActive.className = `${baseTabClass} ${activeStyle}`; tabHistory.className = `${baseTabClass} ${inactiveStyle}`; }
-        else { tabActive.className = `${baseTabClass} ${inactiveStyle}`; tabHistory.className = `${baseTabClass} ${historyStyle}`; }
-        ren();
-    };
-    
-    if(tabActive && tabHistory) { tabActive.onclick = () => switchTab('active'); tabHistory.onclick = () => switchTab('history'); }
+    // HTML書き換えに伴い、タブ要素がnullになる可能性を考慮して取得
+    if(!tabActive || !tabHistory) {
+         // タブ切り替えはHTML構造依存のため、要素がない場合は何もしない（フェールセーフ）
+    } else {
+        const baseTabClass = "flex-1 px-4 py-3 text-sm font-bold transition-colors text-center cursor-pointer";
+        const activeStyle = "text-emerald-600 border-b-4 border-emerald-600 bg-white";
+        const historyStyle = "text-orange-500 border-b-4 border-orange-500 bg-white";
+        const inactiveStyle = "text-gray-400 hover:text-gray-600 border-b border-gray-200 bg-gray-50";
+        
+        const switchTab = (tab) => {
+            currentTab = tab;
+            if(tab === 'active') { 
+                tabActive.className = `${baseTabClass} ${activeStyle}`; 
+                tabHistory.className = `${baseTabClass} ${inactiveStyle}`; 
+            } else { 
+                tabActive.className = `${baseTabClass} ${inactiveStyle}`; 
+                tabHistory.className = `${baseTabClass} ${historyStyle}`; 
+            }
+            ren();
+        };
+        tabActive.onclick = () => switchTab('active'); 
+        tabHistory.onclick = () => switchTab('history');
+    }
 
     const ren = () => {
+        if(!lst) return; // エラー回避
         lst.innerHTML = '';
         const targets = State.activeGoals.filter(g => { 
             if (currentTab === 'active') return !g.status; 
@@ -618,7 +613,6 @@ function initGoals() {
             const titleEl = t.querySelector('[data-field="goal-title"]');
             const cardContainer = t.querySelector('.goal-card');
 
-            // 履歴タブのデザイン分け
             if(currentTab === 'history') {
                 if (g.status === '達成') {
                     cardContainer.classList.add('bg-yellow-50', 'border-yellow-200');
@@ -665,8 +659,8 @@ function initGoals() {
                 if(g.status === '中止') stepEl.classList.add('opacity-50');
             }
 
-            // --- ボタン生成エリア ---
-            const btnContainer = t.querySelector('.flex.flex-wrap.gap-2');
+            // --- ボタン生成エリア (class="button-container") ---
+            const btnContainer = t.querySelector('.button-container');
             if(btnContainer) {
                 btnContainer.innerHTML = '';
                 if (currentTab === 'active') {
@@ -683,7 +677,6 @@ function initGoals() {
                             const result = await modalPromise;
                             if(!result) return;
                             
-                            // ★編集時も危険ワードチェック
                             const checkText = `${result.goal} ${result.step}`;
                             if(checkCrisisKeywords(checkText)) return;
 
@@ -734,7 +727,6 @@ function initGoals() {
         const reason = await customPrompt(msg);
         if (reason === null) return; 
 
-        // ★ステータス変更時の理由入力も危険ワードチェック
         if(checkCrisisKeywords(reason)) return;
 
         const saveID = offsetID + goalObj.goalNo;
@@ -770,7 +762,6 @@ function initGoals() {
             const i = await modalPromise;
             if(!i) return;
 
-            // ★目標登録時の危険ワードチェック
             const checkText = `${i.goal} ${i.step}`;
             if(checkCrisisKeywords(checkText)) return;
 
@@ -861,7 +852,6 @@ function initRecord() {
         const r = document.getElementById('reasonU').value;
         if(!c || !s){ customAlert('評価を選択してください'); return; }
 
-        // ★記録入力（初期）の危険ワードチェック
         const combinedText = `${getGoalMainText(State.selectedGoal.goal)} ${r}`;
         const resetBtn = () => {
              initBtn.disabled = false;
@@ -888,7 +878,6 @@ function initRecord() {
         const txt = chatInput.value.trim();
         if(!txt) return;
         
-        // ★記録入力（追記チャット）の危険ワードチェック
         const resetBtn = () => { sendBtn.disabled = false; sendBtn.textContent = '送信'; };
         if(checkCrisisKeywords(txt, resetBtn)) return;
 
