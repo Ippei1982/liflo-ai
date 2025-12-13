@@ -111,9 +111,27 @@
                 <div class="flex items-center justify-between mb-3"><span class="inline-flex items-center text-xs font-bold px-2 py-1 rounded border hidden" data-field="goal-cat-tag"></span><span class="text-xs text-gray-400 font-medium hidden" data-field="goal-date-tag"></span></div>
                 <div class="bg-gray-50 rounded-lg p-2 border border-gray-100 hidden" data-field="goal-step"><p class="text-xs text-gray-500 font-bold mb-1"> 🏁 最初の一歩</p><p class="text-sm text-gray-700 goal-step-text"></p></div>
             </div>
-            <div class="flex items-stretch gap-3">
-                <button type="button" data-action="start-record" class="flex-1 py-3 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold shadow-md hover:from-emerald-600 hover:to-teal-600 transform transition active:scale-95 flex items-center justify-center gap-2"><span class="text-xl"> ✍️ </span><span>今日の記録</span></button>
-                <button type="button" class="edit-btn px-4 bg-emerald-100 text-emerald-700 rounded-xl hover:bg-emerald-200 transition-colors flex items-center justify-center border border-emerald-200" title="内容を編集する"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+            <div class="flex flex-col gap-3">
+                <button type="button" data-action="start-record" class="w-full py-3 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold shadow-md hover:from-emerald-600 hover:to-teal-600 transform transition active:scale-95 flex items-center justify-center gap-2">
+                    <span class="text-xl"> ✍️ </span><span>今日の記録を入力</span>
+                </button>
+                <div class="grid grid-cols-3 gap-2">
+                    <button type="button" class="edit-btn py-2 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors border border-emerald-200 font-bold text-sm">
+                        編集 📝
+                    </button>
+                    <button type="button" data-action="mark-complete" class="mark-btn py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors border border-purple-200 font-bold text-sm">
+                        達成 🎉
+                    </button>
+                    <button type="button" data-action="mark-cancel" class="mark-btn py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors border border-red-200 font-bold text-sm">
+                        中止 ❌
+                    </button>
+                    <button type="button" data-action="resume-goal" class="hist-btn hidden py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200 font-bold text-sm">
+                        再開 🚀
+                    </button>
+                    <button type="button" data-action="delete-goal" class="hist-btn hidden py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200 font-bold text-sm">
+                        削除 🗑️
+                    </button>
+                </div>
             </div>
         </div>
     </template>
