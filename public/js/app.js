@@ -612,25 +612,6 @@ function initGoals() {
     const historyStyle = "text-orange-500 border-b-4 border-orange-500";
     const inactiveStyle = "text-gray-400 hover:text-gray-600 border-b border-gray-200";
     
-    // カードテンプレートに達成/中止/再開/削除のボタン群を追加する処理
-    const goalCardTemplate = document.getElementById('goal-card-template');
-    if (!goalCardTemplate.content.querySelector('[data-action="mark-complete"]')) {
-        const actionContainer = goalCardTemplate.content.querySelector('.flex.items-stretch.gap-3');
-        if (actionContainer) {
-            actionContainer.innerHTML = `
-                <button type="button" data-action="start-record" class="flex-1 py-3 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold shadow-md hover:from-emerald-600 hover:to-teal-600 transform transition active:scale-95 flex items-center justify-center gap-2"><span class="text-xl"> ✍️ </span><span>今日の記録</span></button>
-                <button type="button" class="edit-btn px-4 bg-emerald-100 text-emerald-700 rounded-xl hover:bg-emerald-200 transition-colors flex items-center justify-center border border-emerald-200" title="内容を編集する"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
-                
-                <button type="button" data-action="mark-complete" class="hidden mark-btn px-4 bg-purple-100 text-purple-700 rounded-xl hover:bg-purple-200 transition-colors flex items-center justify-center border border-purple-200 font-bold gap-1" title="目標を達成する">🎉 達成</button>
-                <button type="button" data-action="mark-cancel" class="hidden mark-btn px-4 bg-red-100 text-red-700 rounded-xl hover:bg-red-200 transition-colors flex items-center justify-center border border-red-200 font-bold gap-1" title="目標を中止する">❌ 中止</button>
-                
-                <button type="button" data-action="resume-goal" class="hidden hist-btn px-4 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 transition-colors flex items-center justify-center border border-blue-200 font-bold gap-1" title="進行中に戻す">🚀 再開</button>
-                <button type="button" data-action="delete-goal" class="hidden hist-btn px-4 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center border border-gray-200 font-bold gap-1" title="完全に削除する">🗑️ 削除</button>
-            `;
-        }
-    }
-
-
     const switchTab = (tab) => {
         currentTab = tab;
         if(tab === 'active') { tabActive.className = `${baseTabClass} ${activeStyle}`; tabHistory.className = `${baseTabClass} ${inactiveStyle}`; }
