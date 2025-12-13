@@ -496,6 +496,12 @@ function initLogin() {
     const userIdInput = document.getElementById('userID');
     const userNameInput = document.getElementById('userName');
     if (!userIdInput || !userNameInput) { customAlert('【システムエラー】\nHTML内の入力欄が見つかりません。'); return; }
+
+    // ★追加1：前回のニックネームがあれば自動入力
+    const savedName = localStorage.getItem('LIFLO_NICKNAME');
+    if (savedName) {
+        userNameInput.value = savedName;
+    }
     
     const auth = async(act) => {
         
@@ -517,6 +523,10 @@ function initLogin() {
             const r = await fetchGAS('POST', { action:act, userID:uid, userName:nm });
             if(r.status === 'success'){
                 State.userID = uid; State.userName = nm;
+
+                // ★追加2：ログイン成功時にニックネームを保存
+                localStorage.setItem('LIFLO_NICKNAME', nm);
+                
                 if(loginBtn) loginBtn.textContent = '成功！ 🎉';
                 await customAlert(`<div class="text-center"><div class="flex justify-center mb-2"><img src="https://i.gyazo.com/611879904819fa76fa1d05bc9f6ce711.png" alt="Success" class="w-40 object-contain"></div><p class="font-bold text-lg">ログインしました！</p></div>`);
                 await fetchUserData(); navigateTo('top');
