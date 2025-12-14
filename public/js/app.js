@@ -932,7 +932,7 @@ function initRecord() {
 
         if (isControl) {
             firstMsgElement = addChatMessage("記録を受け付けました。<br>継続して取り組みましょう。 🌱", 'bot');
-            if (data) { State.pendingData = data; }
+            if (data) { State.pendingData = data; } // ※統制群は単純上書きでOK（AI評価がないため）
             const addChat = document.getElementById('additional-chat-container');
             if(addChat) addChat.classList.add('hidden');
             const guide = document.getElementById('save-recommend-text');
@@ -944,7 +944,9 @@ function initRecord() {
             }
 
             if(data){
-                State.pendingData = data; 
+                // ▼▼▼ ここを修正 ▼▼▼
+                State.pendingData = { ...State.pendingData, ...data }; 
+                // ▲▲▲ 修正終わり ▲▲▲
 
                 if (!isFollowUp) {
                     const analysisHtml = `<div class="border-b border-blue-200 pb-2 mb-2"><div class="font-bold text-orange-600"> 📊 ライフロの見立て (挑戦${data.challengeAI}/能力${data.skillAI})</div><div class="font-bold text-blue-600 mt-1"> 🤔 ライフロの分析</div></div><div class="text-gray-700">${data.reasonAI}</div>`;
@@ -952,8 +954,10 @@ function initRecord() {
                     if (!firstMsgElement) firstMsgElement = analysisMsg;
                 }
 
-                const goalHtml = `<div class="font-bold text-green-600 mb-1 border-b border-green-200 pb-1"> 🚩 今後の目標／課題</div>${data.regoalAI}`;
-                addChatMessage(goalHtml, 'bot', 'regoal');
+                if (data.regoalAI) { //念のためチェック追加
+                    const goalHtml = `<div class="font-bold text-green-600 mb-1 border-b border-green-200 pb-1"> 🚩 今後の目標／課題</div>${data.regoalAI}`;
+                    addChatMessage(goalHtml, 'bot', 'regoal');
+                }
             }
         }
         
